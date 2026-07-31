@@ -1,0 +1,7 @@
+:root {
+  --color-primary: #1465d8; --color-primary-dark: #0b326b; --color-primary-light: #e7f1ff;
+  --color-white: #fff; --color-background: #f4f7fb; --color-success: #198754;
+  --color-warning: #f4b400; --color-danger: #c9362b; --color-text: #172033;
+  --shadow-card: 0 10px 28px rgba(11, 50, 107, .1); --radius: 14px;
+}
+[data-theme='dark'] { --color-white: #172033; --color-background: #0d1424; --color-text: #f3f6fb; --color-primary-light: #183455; }

@@ -1,0 +1,1 @@
+var SanctionService = createServiceContract('SANCIONES');

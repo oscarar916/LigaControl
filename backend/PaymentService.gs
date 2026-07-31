@@ -1,0 +1,1 @@
+var PaymentService = createServiceContract('PAGOS');

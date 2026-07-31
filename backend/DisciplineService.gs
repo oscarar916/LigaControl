@@ -1,0 +1,1 @@
+var DisciplineService = createServiceContract('DISCIPLINAS');

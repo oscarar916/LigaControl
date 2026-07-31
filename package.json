@@ -1,0 +1,18 @@
+{
+  "name": "ligacontrol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma de gestión de campeonatos deportivos.",
+  "scripts": {
+    "start": "http-server . -o /frontend/index.html -c-1",
+    "validate": "node scripts/validate-structure.js",
+    "format": "prettier --write .",
+    "test": "node --test",
+    "seed:preview": "node scripts/seed-preview.js"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "http-server": "^14.1.1",
+    "prettier": "^3.0.0"
+  }
+}

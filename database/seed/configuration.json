@@ -1,0 +1,10 @@
+{
+  "points": { "win": 3, "draw": 1, "loss": 0 },
+  "walkover": { "homeScore": 3, "awayScore": 0 },
+  "feesPEN": { "yellowCard": 10, "redCard": 20 },
+  "sanctions": { "directRedMatchDays": 2, "twoConsecutiveYellowsMatchDays": 1, "twoConsecutiveReds": "PERMANENT_EXPULSION" },
+  "qualifiedTeams": 8,
+  "periodDurationMinutes": 20,
+  "breakMinutes": 5,
+  "toleranceMinutes": 5
+}

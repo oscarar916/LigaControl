@@ -1,0 +1,1 @@
+var ReportService = createServiceContract('REPORTES');

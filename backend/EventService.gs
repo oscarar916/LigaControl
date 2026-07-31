@@ -1,0 +1,1 @@
+var EventService = createServiceContract('EVENTOS');

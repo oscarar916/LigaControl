@@ -1,0 +1,1 @@
+var ChampionshipService = createServiceContract('CAMPEONATOS');

@@ -1,0 +1,1 @@
+var PlayerService = createServiceContract('JUGADORES');

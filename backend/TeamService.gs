@@ -1,0 +1,1 @@
+var TeamService = createServiceContract('EQUIPOS');

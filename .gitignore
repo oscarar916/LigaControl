@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+dist/
+coverage/
+*.log
+.clasp.json
+.secret/
+credentials.json
