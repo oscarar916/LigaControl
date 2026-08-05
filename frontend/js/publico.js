@@ -1,8 +1,8 @@
 import { apiGet } from './api.js';
 
 const params = new URLSearchParams(location.search);
-const championshipId = params.get('championshipId') || localStorage.getItem('ligaControlChampionshipId') || '';
-const disciplineId = params.get('disciplineId') || localStorage.getItem('ligaControlDisciplineId') || '';
+let championshipId = params.get('championshipId') || localStorage.getItem('ligaControlChampionshipId') || '';
+let disciplineId = params.get('disciplineId') || localStorage.getItem('ligaControlDisciplineId') || '';
 const content = document.querySelector('#public-content');
 const message = document.querySelector('#public-message');
 let championship; let discipline; let teams = []; let players = []; let matches = []; let events = []; let sanctions = []; let payments = []; let activeView = 'schedule';
@@ -51,8 +51,25 @@ function renderSanctions() {
 const renderers = { schedule: renderSchedule, results: renderResults, standings: renderStandings, sanctions: renderSanctions };
 function render() { document.querySelectorAll('[data-public-view]').forEach((button) => button.classList.toggle('active', button.dataset.publicView === activeView)); renderers[activeView](); }
 
+async function resolvePublicContext() {
+  if (!championshipId) {
+    const response = await apiGet('/api/championships');
+    const available = (response.data?.items || []).filter((item) => item.status !== 'INACTIVE');
+    const selected = available.find((item) => item.status === 'ACTIVE') || available[0];
+    championshipId = selected?.id || '';
+  }
+
+  if (championshipId && !disciplineId) {
+    const response = await apiGet('/api/disciplines', { championshipId });
+    const available = (response.data?.items || []).filter((item) => item.status !== 'INACTIVE');
+    const selected = available.find((item) => String(item.name).toLowerCase().includes('fulbito')) || available[0];
+    disciplineId = selected?.id || '';
+  }
+}
+
 async function load() {
   try {
+    await resolvePublicContext();
     if (!championshipId || !disciplineId) throw new Error('Este enlace no identifica un campeonato y deporte válidos.');
     const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId }); const data = response.data || {};
     championship = (data.championships || []).find((item) => item.id === championshipId); discipline = (data.disciplines || []).find((item) => item.id === disciplineId); teams = data.teams || []; players = data.players || []; matches = data.matches || []; events = data.events || [];
