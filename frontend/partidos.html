@@ -5,7 +5,7 @@
     <section id="fixture-builder" class="card fixture-builder">
       <div class="section-heading"><div><h2>Generar fixture</h2><p class="muted">Configura el todos contra todos antes de guardar.</p></div><span id="fixture-team-count" class="badge">0 equipos</span></div>
       <div class="form-grid">
-        <label class="field field-wide"><span>Método de generación</span><select id="fixture-method"><option value="registration">Usar orden de inscripción</option><option value="random">Sorteo automático</option><option value="external">Sorteo realizado externamente</option></select></label>
+        <label class="field field-wide"><span>Método de generación</span><select id="fixture-method"><option value="registration">Usar orden de inscripción</option><option value="random">Sorteo automático</option><option value="external">Sorteo realizado externamente</option><option value="paired-reverse">Numeración por parejas (Vóley: 1–2, 3–4…)</option></select></label>
         <label class="check-field field-wide"><input id="manual-first-round" type="checkbox"><span>La primera fecha ya fue sorteada y deseo registrarla manualmente</span></label>
       </div>
       <div id="external-order" class="fixture-configuration" hidden></div>
@@ -18,4 +18,4 @@
 <dialog id="schedule-modal" class="app-modal"><div class="modal-header"><div><small>Programación</small><h2 id="schedule-title">Programar fecha</h2><p class="muted">Indica la hora del primer partido. Los siguientes se programarán automáticamente cada 40 minutos en el mismo escenario.</p></div><button id="close-schedule-modal" class="icon-button" type="button">×</button></div>
   <form id="schedule-form" class="form-grid"><label class="field"><span>Fecha de la jornada *</span><input name="date" type="date" required></label><label class="field"><span>Hora del primer partido *</span><input name="startTime" type="time" required></label><label class="field field-wide"><span>Escenario para toda la fecha *</span><input name="venue" required maxlength="150" placeholder="Ej. Grass Sintético el Chuqui"></label><div class="schedule-rule field-wide"><strong>Intervalo fijo: 40 minutos</strong><span>La vista previa muestra la hora calculada para cada partido.</span></div><div id="schedule-times-preview" class="field-wide schedule-times-preview"></div><div class="modal-actions field-wide"><span id="schedule-status" class="form-status"></span><div class="button-group"><button id="cancel-schedule-modal" class="secondary-button" type="button">Cancelar</button><button class="action-button" type="submit">Guardar toda la fecha</button></div></div></form>
 </dialog>
-<script type="module" src="js/app.js?v=20260804-2"></script><script type="module" src="js/partidos.js?v=20260804-5"></script></body></html>
+<script type="module" src="js/app.js?v=20260804-2"></script><script type="module" src="js/partidos.js?v=20260805-6"></script></body></html>

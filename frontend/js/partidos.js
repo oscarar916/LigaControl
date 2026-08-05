@@ -22,9 +22,19 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character
 function teamOptions(blankLabel = 'Selecciona') { return `<option value="">${blankLabel}</option>${teams.map((team) => `<option value="${team.id}">${escapeHtml(team.name)}</option>`).join('')}`; }
 
 function renderExternalOrder() {
-  externalOrder.hidden = methodSelect.value !== 'external';
+  const numberedMethod = methodSelect.value === 'external' || methodSelect.value === 'paired-reverse';
+  externalOrder.hidden = !numberedMethod;
   if (externalOrder.hidden) return;
-  externalOrder.innerHTML = `<h3>Números del sorteo</h3><div class="draw-number-grid">${teams.map((team, index) => `<label class="field"><span>${escapeHtml(team.name)}</span><input type="number" min="1" max="${teams.length}" value="${index + 1}" data-draw-team="${team.id}"></label>`).join('')}</div>`;
+  const explanation = methodSelect.value === 'paired-reverse' ? '<p class="muted">Fecha 1: 7 vs. 8, 5 vs. 6, 3 vs. 4 y 1 vs. 2. Requiere exactamente 8 equipos.</p>' : '';
+  externalOrder.innerHTML = `<h3>Numeración de equipos</h3>${explanation}<div class="draw-number-grid">${teams.map((team, index) => `<label class="field"><span>${escapeHtml(team.name)}</span><input type="number" min="1" max="${teams.length}" value="${index + 1}" data-draw-team="${team.id}"></label>`).join('')}</div>`;
+}
+
+function syncFixtureMethod() {
+  const paired = methodSelect.value === 'paired-reverse';
+  if (paired) manualCheckbox.checked = false;
+  manualCheckbox.closest('label').hidden = paired;
+  renderExternalOrder();
+  renderManualRound();
 }
 
 function renderManualRound() {
@@ -53,12 +63,23 @@ function orderedTeams() {
   if (methodSelect.value === 'random') {
     for (let i = result.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [result[i], result[j]] = [result[j], result[i]]; }
   }
-  if (methodSelect.value === 'external') {
+  if (methodSelect.value === 'external' || methodSelect.value === 'paired-reverse') {
     const entries = [...externalOrder.querySelectorAll('[data-draw-team]')].map((input) => ({ id: input.dataset.drawTeam, number: Number(input.value) }));
     if (new Set(entries.map((item) => item.number)).size !== teams.length || entries.some((item) => item.number < 1 || item.number > teams.length)) throw new Error('Los números del sorteo deben ser únicos y consecutivos.');
     result = entries.sort((a, b) => a.number - b.number).map((entry) => teams.find((team) => team.id === entry.id));
   }
   return result;
+}
+
+function pairedReverseSeed(numberedTeams) {
+  if (numberedTeams.length !== 8) throw new Error('La modalidad por parejas de Vóley requiere exactamente 8 equipos.');
+  const desiredPairs = [[7, 8], [5, 6], [3, 4], [1, 2]].map(([first, second]) => [numberedTeams[first - 1], numberedTeams[second - 1]]);
+  const rotation = Array(numberedTeams.length);
+  desiredPairs.forEach(([home, away], index) => {
+    if (index % 2 === 0) { rotation[index] = home; rotation[rotation.length - 1 - index] = away; }
+    else { rotation[index] = away; rotation[rotation.length - 1 - index] = home; }
+  });
+  return rotation;
 }
 
 function manualSeed() {
@@ -173,10 +194,10 @@ async function initialize() {
   } catch (error) { status.className = 'form-status error-message'; status.textContent = error.message; }
 }
 
-methodSelect.addEventListener('change', renderExternalOrder); manualCheckbox.addEventListener('change', renderManualRound);
+methodSelect.addEventListener('change', syncFixtureMethod); manualCheckbox.addEventListener('change', renderManualRound);
 manualRound.addEventListener('change', refreshManualOptions);
 document.querySelector('#generate-fixture').addEventListener('click', () => {
-  try { if (teams.length < 2) throw new Error('Se necesitan al menos dos equipos.'); const seed = manualCheckbox.checked ? manualSeed() : orderedTeams(); rounds = generateRounds(seed); activeRound = 1; preview.hidden = false; status.textContent = ''; renderRound(); }
+  try { if (teams.length < 2) throw new Error('Se necesitan al menos dos equipos.'); const ordered = orderedTeams(); const seed = manualCheckbox.checked ? manualSeed() : methodSelect.value === 'paired-reverse' ? pairedReverseSeed(ordered) : ordered; rounds = generateRounds(seed); activeRound = 1; preview.hidden = false; status.textContent = ''; renderRound(); }
   catch (error) { status.className = 'form-status error-message'; status.textContent = error.message; }
 });
 tabs.addEventListener('click', (event) => { const tab = event.target.closest('[data-round]'); if (tab) { activeRound = Number(tab.dataset.round); renderRound(); } });
