@@ -175,3 +175,19 @@ a { color: inherit; text-decoration: none; } button { font: inherit; }
   body.print-single-round .match-date,body.print-single-round .match-venue { display: none !important; }
   body.print-single-round .bye-card { padding: 4mm 5mm; font-size: 11pt; }
 }
+
+/* Zona de clasificacion en la tabla publica */
+.standings-legend { display: grid; justify-items: end; gap: .35rem; color: var(--color-muted); font-size: .82rem; }
+.qualification-legend { display: flex; align-items: center; gap: .4rem; color: #087443; font-weight: 800; }
+.qualification-legend i { width: 12px; height: 12px; border-radius: 3px; background: #22c55e; }
+.public-standings .qualified-row { background: color-mix(in srgb,#22c55e 12%,var(--color-white)); }
+.public-standings .qualified-row td:first-child { border-left: 4px solid #16a34a; }
+.public-standings .qualified-row td:first-child strong { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #dcfce7; color: #087443; }
+.public-standings .qualified-row:nth-child(8) td { border-bottom: 3px solid #16a34a; }
+.dark-theme .qualification-legend { color: #86efac; }
+.dark-theme .public-standings .qualified-row { background: color-mix(in srgb,#22c55e 16%,var(--color-white)); }
+.dark-theme .public-standings .qualified-row td:first-child strong { background: #14532d; color: #bbf7d0; }
+
+@media (max-width: 700px) {
+  .standings-legend { justify-items: start; }
+}
