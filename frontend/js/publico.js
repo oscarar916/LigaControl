@@ -21,6 +21,7 @@ function standings() {
 }
 
 function roundsWith(items) { const values = [...new Set(items.map((match) => match.round))].sort((a, b) => a - b); return values.map((round) => ({ round, matches: items.filter((match) => match.round === round).sort((a, b) => a.order - b.order) })); }
+function roundHasOfficialOrder(round, items, nextPendingRound) { return items.every(played) || (round === nextPendingRound && items.every((match) => match.orderConfirmed)); }
 
 function renderSummary() {
   const completed = matches.filter(played).length; const pendingAmount = payments.filter((payment) => payment.status === 'PENDING').reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
@@ -29,7 +30,8 @@ function renderSummary() {
 
 function renderSchedule() {
   const rounds = roundsWith(matches);
-  content.innerHTML = `<div class="public-section-heading"><div><small>Calendario oficial</small><h2>Programación de partidos</h2></div></div><div class="public-rounds">${rounds.map(({ round, matches: items }) => { const bye = teams.find((team) => !items.some((match) => match.homeId === team.id || match.awayId === team.id)); return `<article class="public-round-card"><header><h3>Fecha ${round}</h3><span>${items.length} partidos</span></header>${items.map((match, index) => `<div class="public-match-row"><b>${index + 1}</b><div class="public-match-teams"><strong>${esc(teamName(match.homeId))}</strong><span>VS</span><strong>${esc(teamName(match.awayId))}</strong></div><div class="public-match-info"><span>${esc(dateText(match.date))}</span><strong>${esc(timeText(match.time))}</strong><span>${esc(match.venue || 'Escenario pendiente')}</span></div></div>`).join('')}${bye ? `<footer>Descansa: <strong>${esc(bye.name)}</strong></footer>` : ''}</article>`; }).join('')}</div>`;
+  const nextPendingRound = rounds.find(({ matches: items }) => !items.every(played))?.round;
+  content.innerHTML = `<div class="public-section-heading"><div><small>Calendario oficial</small><h2>Programación de partidos</h2></div></div><div class="public-rounds">${rounds.map(({ round, matches: items }) => { const bye = teams.find((team) => !items.some((match) => match.homeId === team.id || match.awayId === team.id)); const showOrder = roundHasOfficialOrder(round, items, nextPendingRound); return `<article class="public-round-card"><header><h3>Fecha ${round}</h3><span>${showOrder ? `${items.length} partidos` : 'Orden por definir'}</span></header>${items.map((match, index) => `<div class="public-match-row${showOrder ? '' : ' order-pending'}">${showOrder ? `<b>${index + 1}</b>` : ''}<div class="public-match-teams"><strong>${esc(teamName(match.homeId))}</strong><span>VS</span><strong>${esc(teamName(match.awayId))}</strong></div><div class="public-match-info"><span>${esc(dateText(match.date))}</span><strong>${esc(timeText(match.time))}</strong><span>${esc(match.venue || 'Escenario pendiente')}</span></div></div>`).join('')}${bye ? `<footer>Descansa: <strong>${esc(bye.name)}</strong></footer>` : ''}</article>`; }).join('')}</div>`;
 }
 
 function renderResults() {

@@ -106,15 +106,25 @@ function calculatePoints() {
   });
   return points;
 }
+function roundCompleted(round) { return round.matches.length > 0 && round.matches.every((match) => match.closed || match.status === 'FINISHED' || match.roundLocked); }
+function nextPendingRoundNumber() { return rounds.find((round) => !roundCompleted(round))?.number; }
+function roundHasOfficialOrder(round) { return roundCompleted(round) || (round.number === nextPendingRoundNumber() && round.matches.every((match) => match.orderConfirmed)); }
 function renderTabs() { tabs.innerHTML = rounds.map((round) => `<button class="round-tab${round.number === activeRound ? ' active' : ''}" data-round="${round.number}" type="button">Fecha ${round.number}</button>`).join(''); }
 function renderRound() {
   showingGeneral = false;
   const round = rounds.find((item) => item.number === activeRound);
   const firstMatch = round.matches[0];
   const confirmed = round.matches.length && round.matches.every((match) => match.orderConfirmed);
+  const canManageOrder = round.number === nextPendingRoundNumber();
+  const showOrder = roundHasOfficialOrder(round);
   const points = calculatePoints();
   renderTabs();
-  content.innerHTML = `<div class="round-heading"><div><h3>Fecha ${round.number}</h3><span>${round.matches.length} partidos</span><div class="print-round-details"><strong>${escapeHtml(firstMatch?.date ? displayDate(firstMatch.date) : 'Fecha pendiente')}</strong><span>${escapeHtml(firstMatch?.venue || 'Escenario pendiente')}</span></div></div><div class="button-group">${fixtureSaved ? '<button class="secondary-button" type="button" data-schedule-round>Programar fecha</button>' : ''}${confirmed ? '<span class="confirmed-order">✓ Orden confirmado</span>' : '<button class="secondary-button" type="button" data-suggest-order>Orden sugerido por puntos</button>'}${fixtureSaved && !confirmed ? '<button class="action-button" type="button" data-confirm-order>Confirmar orden</button>' : ''}</div></div><div class="fixture-match-list">${round.matches.map((match, index) => `<article class="fixture-match"><span class="match-order">${index + 1}.°</span><div class="match-teams"><strong>${escapeHtml(teamName(match.homeId))}</strong><span class="versus-badge">VS</span><strong>${escapeHtml(teamName(match.awayId))}</strong></div><div class="match-metadata"><span class="match-date">🗓 ${escapeHtml(displayDate(match.date))}</span><span class="match-time">🕐 ${escapeHtml(displayTime(match.time))}</span><span class="match-venue">📍 ${escapeHtml(match.venue || 'Escenario pendiente')}</span><span class="points-badge">${(points[match.homeId] || 0) + (points[match.awayId] || 0)} pts.</span></div>${confirmed ? '' : `<div class="order-actions"><button type="button" data-move="up" data-index="${index}" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-move="down" data-index="${index}" ${index === round.matches.length - 1 ? 'disabled' : ''}>↓</button></div>`}</article>`).join('')}</div>${round.byeTeamId ? `<div class="bye-card">Descansa: <strong>${escapeHtml(teamName(round.byeTeamId))}</strong></div>` : ''}`;
+  const orderControls = showOrder && confirmed
+    ? '<span class="confirmed-order">✓ Orden confirmado</span>'
+    : canManageOrder
+      ? `<button class="secondary-button" type="button" data-suggest-order>Orden sugerido por puntos</button>${fixtureSaved ? '<button class="action-button" type="button" data-confirm-order>Confirmar orden</button>' : ''}`
+      : '<span class="pending-order-label">Disponible después de cerrar la fecha anterior</span>';
+  content.innerHTML = `<div class="round-heading"><div><h3>Fecha ${round.number}</h3><span>${round.matches.length} partidos</span><div class="print-round-details"><strong>${escapeHtml(firstMatch?.date ? displayDate(firstMatch.date) : 'Fecha pendiente')}</strong><span>${escapeHtml(firstMatch?.venue || 'Escenario pendiente')}</span></div></div><div class="button-group">${fixtureSaved && showOrder ? '<button class="secondary-button" type="button" data-schedule-round>Programar fecha</button>' : ''}${orderControls}</div></div><div class="fixture-match-list">${round.matches.map((match, index) => `<article class="fixture-match${showOrder ? '' : ' order-pending'}">${showOrder ? `<span class="match-order">${index + 1}.°</span>` : ''}<div class="match-teams"><strong>${escapeHtml(teamName(match.homeId))}</strong><span class="versus-badge">VS</span><strong>${escapeHtml(teamName(match.awayId))}</strong></div><div class="match-metadata"><span class="match-date">🗓 ${escapeHtml(displayDate(match.date))}</span><span class="match-time">🕐 ${escapeHtml(displayTime(match.time))}</span><span class="match-venue">📍 ${escapeHtml(match.venue || 'Escenario pendiente')}</span><span class="points-badge">${(points[match.homeId] || 0) + (points[match.awayId] || 0)} pts.</span></div>${canManageOrder && !confirmed ? `<div class="order-actions"><button type="button" data-move="up" data-index="${index}" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-move="down" data-index="${index}" ${index === round.matches.length - 1 ? 'disabled' : ''}>↓</button></div>` : ''}</article>`).join('')}</div>${round.byeTeamId ? `<div class="bye-card">Descansa: <strong>${escapeHtml(teamName(round.byeTeamId))}</strong></div>` : ''}`;
   document.querySelector('#print-fixture').textContent = `Imprimir Fecha ${round.number}`;
 }
 
@@ -129,7 +139,7 @@ function matchScheduleText(match) {
 function renderGeneral() {
   showingGeneral = true;
   tabs.querySelectorAll('.round-tab').forEach((tab) => tab.classList.remove('active'));
-  content.innerHTML = `<div class="general-fixture-grid">${rounds.map((round) => `<article class="general-round"><h3>Fecha ${round.number}</h3><div class="general-match-list">${round.matches.map((match, index) => `<div class="general-match"><strong class="general-match-order">${index + 1}.</strong><span class="general-match-teams">${escapeHtml(teamName(match.homeId))} <b>vs.</b> ${escapeHtml(teamName(match.awayId))}</span>${matchScheduleText(match) ? `<small>${escapeHtml(matchScheduleText(match))}</small>` : ''}</div>`).join('')}</div>${round.byeTeamId ? `<div class="general-bye">Descansa: <strong>${escapeHtml(teamName(round.byeTeamId))}</strong></div>` : ''}</article>`).join('')}</div>`;
+  content.innerHTML = `<div class="general-fixture-grid">${rounds.map((round) => { const showOrder = roundHasOfficialOrder(round); return `<article class="general-round"><h3>Fecha ${round.number}</h3>${showOrder ? '' : '<span class="pending-order-label">Orden por definir</span>'}<div class="general-match-list">${round.matches.map((match, index) => `<div class="general-match${showOrder ? '' : ' order-pending'}">${showOrder ? `<strong class="general-match-order">${index + 1}.</strong>` : ''}<span class="general-match-teams">${escapeHtml(teamName(match.homeId))} <b>vs.</b> ${escapeHtml(teamName(match.awayId))}</span>${matchScheduleText(match) ? `<small>${escapeHtml(matchScheduleText(match))}</small>` : ''}</div>`).join('')}</div>${round.byeTeamId ? `<div class="general-bye">Descansa: <strong>${escapeHtml(teamName(round.byeTeamId))}</strong></div>` : ''}</article>`; }).join('')}</div>`;
   document.querySelector('#print-fixture').textContent = 'Imprimir programación';
 }
 
@@ -137,7 +147,7 @@ function fixtureShareText() {
   const title = `${championship?.name || 'Campeonato'} · ${discipline?.name || 'Deporte'}`;
   return [`PROGRAMACIÓN — ${title}`, '', ...rounds.flatMap((round) => [
     `FECHA ${round.number}`,
-    ...round.matches.map((match, index) => `${index + 1}. ${teamName(match.homeId)} vs. ${teamName(match.awayId)}${matchScheduleText(match) ? ` — ${matchScheduleText(match)}` : ''}`),
+    ...round.matches.map((match, index) => `${roundHasOfficialOrder(round) ? `${index + 1}. ` : ''}${teamName(match.homeId)} vs. ${teamName(match.awayId)}${matchScheduleText(match) ? ` — ${matchScheduleText(match)}` : ''}`),
     ...(round.byeTeamId ? [`Descansa: ${teamName(round.byeTeamId)}`] : []),
     ''
   ])].join('\n').trim();
