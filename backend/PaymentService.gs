@@ -1,1 +1,6 @@
-var PaymentService = createServiceContract('PAGOS');
+var PaymentService = {
+  get: function (context) { var p = context.params || {}; var items = listSheetRecords(SHEETS.PAYMENTS).filter(function (x) { return (!p.championshipId || String(x.campeonato_id) === String(p.championshipId)) && String(x.estado) !== 'INACTIVE'; }).map(toPaymentResponse); return { items: items, total: items.length }; },
+  put: function (context) { var b = context.body || {}; if (!b.id || !validateUuid(b.id)) throw appError('VALIDATION_ERROR', 'El pago no es válido.', 400); var paid = Boolean(b.paid); return toPaymentResponse(updateSheetRecord(SHEETS.PAYMENTS, b.id, { estado: paid ? 'PAID' : 'PENDING', fecha: paid ? nowIso().slice(0, 10) : '', referencia: sanitizeText(b.reference || ''), updated_at: nowIso() })); }
+};
+function createPendingPayment(s) { var t = nowIso(), r = { id: generateUuid(), campeonato_id: s.campeonato_id, equipo_id: s.equipo_id, jugador_id: s.jugador_id, sancion_id: s.id, created_by: '', concepto: s.motivo, monto: s.monto, moneda: 'PEN', fecha: '', comprobante_url: '', referencia: '', estado: 'PENDING', created_at: t, updated_at: t, observaciones: '' }; appendSheetRecord(SHEETS.PAYMENTS, r); return r; }
+function toPaymentResponse(x) { return { id: x.id, championshipId: x.campeonato_id, teamId: x.equipo_id, playerId: x.jugador_id, sanctionId: x.sancion_id, concept: x.concepto, amount: Number(x.monto || 0), currency: x.moneda || 'PEN', date: x.fecha || '', reference: x.referencia || '', status: x.estado }; }

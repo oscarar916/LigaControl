@@ -2,7 +2,8 @@ var ChampionshipService = {
   get: function (context) {
     var params = context.params || {};
     var items = listSheetRecords(SHEETS.CHAMPIONSHIPS).filter(function (item) {
-      return !params.status || String(item.estado) === String(params.status);
+      if (params.status) return String(item.estado) === String(params.status);
+      return String(item.estado) !== 'INACTIVE';
     }).map(toChampionshipResponse);
     return { items: items, total: items.length };
   },

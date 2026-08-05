@@ -1,1 +1,74 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Panel | LigaControl</title><link rel="stylesheet" href="css/styles.css"></head><body><div class="app-shell"><aside class="sidebar"><h2>LigaControl</h2><nav><a class="active" href="dashboard.html">Resumen</a><a href="equipos.html">Equipos</a><a href="jugadores.html">Jugadores</a><a href="partidos.html">Partidos</a><a href="resultados.html">Resultados</a><a href="reportes.html">Reportes</a></nav></aside><main class="main"><header class="topbar"><div><small>XV Campeonato 2026</small><h1>Panel general</h1></div><button class="theme-toggle" data-theme-toggle aria-label="Cambiar tema">◐ Tema</button></header><section class="grid"><article class="card"><span>Equipos</span><div class="kpi">11</div></article><article class="card"><span>Jugadores</span><div class="kpi">—</div></article><article class="card"><span>Partidos</span><div class="kpi">—</div></article><article class="card"><span>Alertas</span><div class="kpi">2</div></article></section><section class="grid" style="grid-template-columns:2fr 1fr"><article class="card"><h2>Próximos partidos</h2><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Encuentro</th><th>Escenario</th></tr></thead><tbody><tr><td>Por programar</td><td>Fixture pendiente</td><td>—</td></tr></tbody></table></div></article><article class="card"><h2>Alertas</h2><p><span class="badge">Configuración</span></p><p>Conectar la API en Sprint 3.</p></article></section><section class="card"><h2>Tabla resumida</h2><div class="table-wrap"><table><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PTS</th></tr></thead><tbody><tr><td>—</td><td>Sin resultados registrados</td><td>0</td><td>0</td></tr></tbody></table></div></section></main></div><script type="module" src="js/app.js"></script><script type="module" src="js/dashboard.js"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Campeonatos | LigaControl</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <h2>LigaControl</h2>
+      <nav>
+        <a class="active" href="dashboard.html">Campeonatos</a>
+        <span class="nav-disabled">Ajustes <small>Próximamente</small></span>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><small>Administración deportiva</small><h1>Campeonatos</h1></div>
+        <div class="topbar-actions">
+          <button id="open-championship-modal" class="action-button" type="button">+ Nuevo campeonato</button>
+          <button class="theme-toggle" data-theme-toggle aria-label="Cambiar tema">◐ Tema</button>
+        </div>
+      </header>
+
+      <section class="card championships-panel">
+        <div class="section-heading">
+          <div><h2>Mis campeonatos</h2><p class="muted">Selecciona el campeonato que deseas administrar.</p></div>
+          <button id="reload-championships" class="secondary-button" type="button">Actualizar</button>
+        </div>
+        <div id="championship-list" class="championship-grid" aria-live="polite"><p class="muted">Cargando…</p></div>
+      </section>
+
+    </main>
+  </div>
+
+  <dialog id="championship-modal" class="app-modal">
+    <div class="modal-header">
+      <div><small>Nuevo</small><h2>Crear campeonato</h2><p class="muted">Registra el campeonato y su disciplina en un solo paso.</p></div>
+      <button id="close-championship-modal" class="icon-button" type="button" aria-label="Cerrar">×</button>
+    </div>
+
+    <form id="championship-form" class="form-grid">
+      <h3 class="form-section-title field-wide">Datos del campeonato</h3>
+      <label class="field field-wide"><span>Nombre del campeonato *</span><input name="name" required maxlength="150" placeholder="Ej. Campeonato Inter Microrredes 2026"></label>
+      <label class="field"><span>Nombre corto</span><input name="shortName" maxlength="80" placeholder="Ej. Inter Microrredes"></label>
+      <label class="field"><span>Año *</span><input name="year" type="number" required min="2000" max="2100" value="2026"></label>
+      <label class="field field-wide"><span>Organizador *</span><input name="organizer" required maxlength="150" placeholder="Institución organizadora"></label>
+      <label class="field"><span>Fecha de inicio</span><input name="startDate" type="date"></label>
+      <label class="field"><span>Fecha de finalización</span><input name="endDate" type="date"></label>
+
+      <h3 class="form-section-title field-wide">Disciplina</h3>
+      <div id="discipline-fields" class="field-wide discipline-fields">
+        <label class="field"><span>Disciplina *</span><select name="disciplineName" required><option value="">Selecciona una disciplina</option><option value="Fulbito">Fulbito</option><option value="Fútbol">Fútbol</option><option value="Vóley">Vóley</option></select></label>
+      </div>
+      <div class="field-wide"><button id="add-discipline-field" class="add-inline-button" type="button">+ Agregar otra disciplina</button></div>
+      <p class="field-wide field-help">El código y el tipo de deporte se configurarán automáticamente.</p>
+
+      <div class="modal-actions field-wide">
+        <span id="form-status" class="form-status" role="status" aria-live="polite"></span>
+        <div class="button-group">
+          <button id="cancel-championship-modal" class="secondary-button" type="button">Cancelar</button>
+          <button class="action-button" type="submit">Crear campeonato</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Configuración | LigaControl</title><link rel="stylesheet" href="css/styles.css"></head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar championship-sidebar"><a class="back-link" href="dashboard.html">← Mis campeonatos</a><h2 id="sidebar-championship">Campeonato</h2><nav><a href="campeonato.html">Resumen</a><a href="configuracion.html">Datos del campeonato</a><a class="active" href="ajustes.html">Configuración</a></nav></aside>
+    <main class="main">
+      <header class="topbar"><div><small>Administración del campeonato</small><h1>Configuración</h1></div><button class="theme-toggle" data-theme-toggle>◐ Tema</button></header>
+      <section class="card settings-card admin-access-card">
+        <div><small>Seguridad</small><h2>Acceso de administrador</h2></div>
+        <p class="muted">Esta clave autoriza cambios en campeonatos, equipos, jugadores y resultados. Se guarda solamente en este navegador.</p>
+        <form id="admin-key-form" class="admin-key-form">
+          <label class="field"><span>Clave de administración</span><input id="admin-api-key" type="password" autocomplete="new-password" required minlength="24" placeholder="Pega aquí la clave configurada en Apps Script"></label>
+          <label class="check-field"><input id="show-admin-key" type="checkbox"> Mostrar clave</label>
+          <div class="button-group"><button class="action-button" type="submit">Guardar clave</button><button id="clear-admin-key" class="secondary-button" type="button">Quitar de este navegador</button></div>
+          <span id="admin-key-status" class="form-status" role="status"></span>
+        </form>
+      </section>
+      <section class="card settings-card">
+        <h2>Zona de restablecimiento</h2>
+        <p class="muted">Estas herramientas servirán para iniciar nuevamente una parte del campeonato. Ninguna acción se ejecutará sin una confirmación adicional.</p>
+        <div class="reset-options">
+          <article class="reset-option"><div><strong>Restablecer jugadores</strong><p>Quitará las inscripciones de jugadores, conservando los equipos.</p></div><span class="badge">Por configurar</span></article>
+          <article class="reset-option"><div><strong>Restablecer equipos</strong><p>Quitará los equipos y sus jugadores, conservando el campeonato y sus disciplinas.</p></div><span class="badge">Por configurar</span></article>
+          <article class="reset-option danger-option"><div><strong>Restablecer campeonato</strong><p>Reiniciará los datos deportivos. Debemos definir si conservará equipos, pagos y partidos.</p></div><span class="badge">Requiere definición</span></article>
+          <article class="reset-option danger-option"><div><strong>Eliminar campeonato</strong><p>El campeonato dejará de aparecer en el sistema. Esta acción requiere escribir su nombre para confirmar.</p></div><button id="open-delete-championship" class="danger-button" type="button">Eliminar campeonato</button></article>
+        </div>
+      </section>
+    </main>
+  </div>
+  <dialog id="delete-championship-modal" class="app-modal delete-modal">
+    <div class="modal-header"><div><small>Zona de peligro</small><h2>Eliminar campeonato</h2></div><button id="close-delete-modal" class="icon-button" type="button">×</button></div>
+    <p>Esta acción quitará el campeonato del sistema. Para confirmar, escribe exactamente:</p>
+    <p id="delete-confirmation-name" class="confirmation-name"></p>
+    <label class="field"><span>Nombre del campeonato</span><input id="delete-confirmation-input" autocomplete="off"></label>
+    <div class="modal-actions"><span id="delete-status" class="form-status" role="status"></span><div class="button-group"><button id="cancel-delete-modal" class="secondary-button" type="button">Cancelar</button><button id="confirm-delete-championship" class="danger-button" type="button" disabled>Eliminar definitivamente</button></div></div>
+  </dialog>
+  <script type="module" src="js/app.js"></script><script type="module" src="js/ajustes.js"></script>
+</body></html>

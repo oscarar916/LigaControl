@@ -1,0 +1,47 @@
+name: Publicar LigaControl
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el proyecto
+        uses: actions/checkout@v4
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Preparar sitio público
+        shell: bash
+        run: |
+          mkdir -p _site/css _site/js
+          cp frontend/publico.html _site/index.html
+          cp frontend/publico.html _site/publico.html
+          cp frontend/css/styles.css frontend/css/variables.css _site/css/
+          cp frontend/js/app.js frontend/js/api.js frontend/js/config.js frontend/js/publico.js _site/js/
+          touch _site/.nojekyll
+
+      - name: Subir sitio estático
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4

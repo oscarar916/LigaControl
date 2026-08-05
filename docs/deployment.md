@@ -1,5 +1,9 @@
 # Despliegue
 
+## Seguridad obligatoria
+
+Antes de publicar, cree `ADMIN_API_KEY` en **Configuración del proyecto > Propiedades de la secuencia de comandos** con una clave aleatoria de al menos 24 caracteres. No guarde esa clave en Git. Luego guarde la misma clave desde **Configuración > Acceso de administrador** en cada navegador autorizado.
+
 1. Crear el proyecto de Google Apps Script y asociar los archivos de `backend/`.
 2. Crear el Spreadsheet con las hojas del esquema y una carpeta Drive dedicada.
 3. Guardar `SPREADSHEET_ID`, `DRIVE_FOLDER_ID` y configuración sensible en Script Properties.

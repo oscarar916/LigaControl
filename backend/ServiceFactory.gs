@@ -69,6 +69,21 @@ function appendSheetRecord(sheetName, record) {
   }
 }
 
+function appendSheetRecords(sheetName, records) {
+  if (!records.length) return records;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = getDatabaseSheet(sheetName);
+    var headers = getSheetHeaders(sheet);
+    var values = records.map(function (record) {
+      return headers.map(function (header) { return record[header] === undefined || record[header] === null ? '' : record[header]; });
+    });
+    sheet.getRange(sheet.getLastRow() + 1, 1, values.length, headers.length).setValues(values);
+    return records;
+  } finally { lock.releaseLock(); }
+}
+
 function updateSheetRecord(sheetName, id, changes) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
