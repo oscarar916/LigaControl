@@ -1,12 +1,37 @@
 <!doctype html>
 <html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Equipo | LigaControl</title><link rel="stylesheet" href="css/styles.css"></head>
-<body><div class="app-shell">
-  <aside class="sidebar championship-sidebar"><a class="back-link" href="equipos.html">← Equipos</a><h2 id="sidebar-team">Equipo</h2><nav><a class="active" href="equipo.html">Jugadores</a><a href="partidos.html">Partidos</a><a href="resultados.html">Resultados</a><a href="sanciones.html">Sanciones y pagos</a></nav></aside>
-  <main class="main"><header class="topbar"><div><small id="team-context">Equipo seleccionado</small><h1 id="team-title">Jugadores</h1></div><div class="topbar-actions"><button id="open-player-modal" class="action-button" type="button">+ Nuevo jugador</button><button class="theme-toggle" data-theme-toggle>◐ Tema</button></div></header>
-    <section class="card championships-panel"><div class="section-heading"><div><h2>Plantel <span id="player-count" class="badge">0</span></h2><p class="muted">Jugadores inscritos en este equipo.</p></div><button id="reload-players" class="secondary-button" type="button">Actualizar</button></div><div id="player-list" class="player-grid" aria-live="polite"><p class="muted">Cargando…</p></div></section>
-  </main>
-</div>
-<dialog id="player-modal" class="app-modal"><div class="modal-header"><div><small>Nuevo</small><h2>Registrar jugador</h2><p id="player-modal-context" class="muted"></p></div><button id="close-player-modal" class="icon-button" type="button">×</button></div>
-  <form id="player-form" class="form-grid"><input name="id" type="hidden"><label class="field"><span>DNI (opcional)</span><input name="dni" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" placeholder="8 números"></label><label class="field"><span>Número de camiseta</span><input name="shirtNumber" type="number" min="0" max="99"></label><label class="field field-wide"><span>Nombres y apellidos *</span><input name="fullName" required maxlength="180"></label><label class="field"><span>Posición</span><input name="position" maxlength="80" placeholder="Ej. Arquero"></label><label class="field"><span>Fecha de nacimiento</span><input name="birthDate" type="date"></label><div class="modal-actions field-wide"><span id="player-form-status" class="form-status"></span><div class="button-group"><button id="cancel-player-modal" class="secondary-button" type="button">Cancelar</button><button class="action-button" type="submit">Guardar jugador</button></div></div></form>
-</dialog><script type="module" src="js/app.js"></script><script type="module" src="js/equipo.js"></script></body></html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Equipo | LigaControl</title>
+  <link rel="stylesheet" href="css/styles.css?v=20260818-5">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar championship-sidebar">
+      <a class="back-link" href="equipos.html">← Equipos</a>
+      <h2 id="sidebar-team">Equipo</h2>
+      <nav>
+        <a href="campeonato.html">Resumen</a>
+        <a class="active" href="equipos.html">Equipos</a>
+        <a href="partidos.html">Partidos</a>
+        <a href="resultados.html">Resultados</a>
+        <a href="sanciones.html">Sanciones y pagos</a>
+        <a href="reportes.html">Reportes</a>
+        <a href="configuracion.html">Configuración</a>
+      </nav>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div><small id="team-context">Equipo seleccionado</small><h1 id="team-title">Jugadores</h1></div>
+        <div class="topbar-actions"><button id="open-player-modal" class="action-button" type="button">+ Nuevo jugador</button><button class="theme-toggle" data-theme-toggle>◐ Tema</button></div>
+      </header>
+      <section class="card championships-panel"><div class="section-heading"><div><h2>Plantel <span id="player-count" class="badge">0</span></h2><p class="muted">Jugadores inscritos en este equipo.</p></div><button id="reload-players" class="secondary-button" type="button">Actualizar</button></div><div id="player-list" class="player-grid" aria-live="polite"><p class="muted">Cargando…</p></div></section>
+    </main>
+  </div>
+  <dialog id="player-modal" class="app-modal"><div class="modal-header"><div><small>Nuevo</small><h2>Registrar jugador</h2><p id="player-modal-context" class="muted"></p></div><button id="close-player-modal" class="icon-button" type="button">×</button></div>
+    <form id="player-form" class="form-grid"><input name="id" type="hidden"><label class="field"><span>DNI (opcional)</span><input name="dni" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" placeholder="8 números"></label><label class="field"><span>Número de camiseta</span><input name="shirtNumber" type="number" min="0" max="99"></label><label class="field field-wide"><span>Nombres y apellidos *</span><input name="fullName" required maxlength="180"></label><label class="field"><span>Posición</span><input name="position" maxlength="80" placeholder="Ej. Arquero"></label><label class="field"><span>Fecha de nacimiento</span><input name="birthDate" type="date"></label><div class="modal-actions field-wide"><span id="player-form-status" class="form-status"></span><div class="button-group"><button id="cancel-player-modal" class="secondary-button" type="button">Cancelar</button><button class="action-button" type="submit">Guardar jugador</button></div></div></form>
+  </dialog>
+  <script type="module" src="js/app.js"></script><script type="module" src="js/equipo.js"></script>
+</body>
+</html>

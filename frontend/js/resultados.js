@@ -122,7 +122,13 @@ function standings() {
 
 function renderStandings() {
   const rows = standings();
-  standingsBody.innerHTML = rows.map((item, index) => `<tr class="${rows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''}"><td><strong>${index + 1}</strong></td><td>${esc(item.team.name)}</td><td>${item.pj}</td><td>${item.pg}</td><td>${item.pe}</td><td>${item.pp}</td><td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td><td><strong>${item.pts}</strong></td></tr>`).join('');
+  standingsBody.innerHTML = rows.map((item, index) => {
+    const classes = [
+      rows.length > 8 && index < 8 ? 'qualified-row' : '',
+      rows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''
+    ].filter(Boolean).join(' ');
+    return `<tr class="${classes}"><td><strong>${index + 1}</strong></td><td>${esc(item.team.name)}</td><td>${item.pj}</td><td>${item.pg}</td><td>${item.pe}</td><td>${item.pp}</td><td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td><td><strong>${item.pts}</strong></td></tr>`;
+  }).join('');
 }
 
 function renderSanctions() {

@@ -1,10 +1,42 @@
-﻿<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reportes | LigaControl</title><link rel="stylesheet" href="css/styles.css?v=20260818-3"></head>
-<body><div class="app-shell">
-  <aside class="sidebar championship-sidebar"><a class="back-link" href="equipos.html">â† Equipos</a><h2 id="sidebar-championship">Campeonato</h2><nav><a href="campeonato.html">Resumen</a><a href="equipos.html">Equipos</a><a href="partidos.html">Partidos</a><a href="resultados.html">Resultados</a><a href="sanciones.html">Sanciones y pagos</a><a class="active" href="reportes.html">Reportes</a><a href="publico.html">Vista pÃºblica â†—</a><a href="configuracion.html">Datos del campeonato</a><a href="ajustes.html">ConfiguraciÃ³n</a></nav></aside>
-  <main class="main reports-main"><header class="topbar"><div><small id="reports-context">Deporte seleccionado</small><h1>Reportes</h1></div><div class="topbar-actions"><button id="share-report" class="secondary-button" type="button">Compartir</button><button id="print-report" class="action-button" type="button">Imprimir / PDF</button><button class="theme-toggle" data-theme-toggle>â— Tema</button></div></header>
-    <section id="reports-summary" class="reports-summary" aria-label="Resumen"></section>
-    <nav class="report-tabs" aria-label="Tipo de reporte"><button class="active" type="button" data-report="standings">Tabla de posiciones</button><button type="button" data-report="scorers">Goleadores</button><button type="button" data-report="cards">Tarjetas y sanciones</button><button type="button" data-report="rosters">Planteles</button></nav>
-    <section id="report-document" class="card report-document"><header class="report-print-header"><small>REPORTE OFICIAL</small><h2 id="report-championship">Campeonato</h2><p id="report-discipline">Deporte</p></header><div class="section-heading report-heading"><div><small id="report-kicker">Reporte deportivo</small><h2 id="report-title">Tabla de posiciones</h2><p id="report-description" class="muted"></p></div><span id="report-generated-at" class="report-date"></span></div><div id="report-content"><p class="muted">Cargando informaciÃ³nâ€¦</p></div><footer class="report-footer"><span>LigaControl</span><span id="report-footer-context"></span></footer></section>
-    <p id="report-status" class="form-status" role="status"></p>
-  </main>
-</div><script type="module" src="js/app.js?v=20260804-2"></script><script type="module" src="js/reportes.js?v=20260818-4"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Reportes | LigaControl</title>
+  <link rel="stylesheet" href="css/styles.css?v=20260818-5">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar championship-sidebar">
+      <a class="back-link" href="equipos.html">← Equipos</a>
+      <h2 id="sidebar-championship">Campeonato</h2>
+      <nav>
+        <a href="campeonato.html">Resumen</a>
+        <a href="equipos.html">Equipos</a>
+        <a href="partidos.html">Partidos</a>
+        <a href="resultados.html">Resultados</a>
+        <a href="sanciones.html">Sanciones y pagos</a>
+        <a class="active" href="reportes.html">Reportes</a>
+        <a href="configuracion.html">Configuración</a>
+      </nav>
+    </aside>
+    <main class="main reports-main">
+      <header class="topbar">
+        <div><small id="reports-context">Deporte seleccionado</small><h1>Reportes</h1></div>
+        <div class="topbar-actions">
+          <a class="secondary-button" href="publico.html">Vista pública ↗</a>
+          <button id="share-report" class="secondary-button" type="button">Compartir</button>
+          <button id="print-report" class="action-button" type="button">Imprimir / PDF</button>
+          <button class="theme-toggle" data-theme-toggle>◐ Tema</button>
+        </div>
+      </header>
+      <section id="reports-summary" class="reports-summary" aria-label="Resumen"></section>
+      <nav class="report-tabs" aria-label="Tipo de reporte"><button class="active" type="button" data-report="standings">Tabla de posiciones</button><button type="button" data-report="scorers">Goleadores</button><button type="button" data-report="cards">Tarjetas y sanciones</button><button type="button" data-report="rosters">Planteles</button></nav>
+      <section id="report-document" class="card report-document"><header class="report-print-header"><small>REPORTE OFICIAL</small><h2 id="report-championship">Campeonato</h2><p id="report-discipline">Deporte</p></header><div class="section-heading report-heading"><div><small id="report-kicker">Reporte deportivo</small><h2 id="report-title">Tabla de posiciones</h2><p id="report-description" class="muted"></p></div><span id="report-generated-at" class="report-date"></span></div><div id="report-content"><p class="muted">Cargando información…</p></div><footer class="report-footer"><span>LigaControl</span><span id="report-footer-context"></span></footer></section>
+      <p id="report-status" class="form-status" role="status"></p>
+    </main>
+  </div>
+  <script type="module" src="js/app.js?v=20260804-2"></script><script type="module" src="js/reportes.js?v=20260818-4"></script>
+</body>
+</html>

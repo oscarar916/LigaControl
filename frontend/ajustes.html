@@ -1,11 +1,28 @@
 <!doctype html>
 <html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Configuración | LigaControl</title><link rel="stylesheet" href="css/styles.css"></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ajustes avanzados | LigaControl</title>
+  <link rel="stylesheet" href="css/styles.css?v=20260818-5">
+</head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar championship-sidebar"><a class="back-link" href="dashboard.html">← Mis campeonatos</a><h2 id="sidebar-championship">Campeonato</h2><nav><a href="campeonato.html">Resumen</a><a href="configuracion.html">Datos del campeonato</a><a class="active" href="ajustes.html">Configuración</a></nav></aside>
+    <aside class="sidebar championship-sidebar">
+      <a class="back-link" href="configuracion.html">← Configuración</a>
+      <h2 id="sidebar-championship">Campeonato</h2>
+      <nav>
+        <a href="campeonato.html">Resumen</a>
+        <a href="equipos.html">Equipos</a>
+        <a href="partidos.html">Partidos</a>
+        <a href="resultados.html">Resultados</a>
+        <a href="sanciones.html">Sanciones y pagos</a>
+        <a href="reportes.html">Reportes</a>
+        <a class="active" href="configuracion.html">Configuración</a>
+      </nav>
+    </aside>
     <main class="main">
-      <header class="topbar"><div><small>Administración del campeonato</small><h1>Configuración</h1></div><button class="theme-toggle" data-theme-toggle>◐ Tema</button></header>
+      <header class="topbar"><div><small>Administración del campeonato</small><h1>Ajustes avanzados</h1></div><button class="theme-toggle" data-theme-toggle>◐ Tema</button></header>
       <section class="card settings-card admin-access-card">
         <div><small>Seguridad</small><h2>Acceso de administrador</h2></div>
         <p class="muted">Esta clave autoriza cambios en campeonatos, equipos, jugadores y resultados. Se guarda solamente en este navegador.</p>
@@ -21,7 +38,7 @@
         <p class="muted">Estas herramientas servirán para iniciar nuevamente una parte del campeonato. Ninguna acción se ejecutará sin una confirmación adicional.</p>
         <div class="reset-options">
           <article class="reset-option"><div><strong>Restablecer jugadores</strong><p>Quitará las inscripciones de jugadores, conservando los equipos.</p></div><span class="badge">Por configurar</span></article>
-          <article class="reset-option"><div><strong>Restablecer equipos</strong><p>Quitará los equipos y sus jugadores, conservando el campeonato y sus disciplinas.</p></div><span class="badge">Por configurar</span></article>
+          <article class="reset-option"><div><strong>Restablecer equipos</strong><p>Quitará los equipos y sus jugadores, conservando el campeonato y sus deportes.</p></div><span class="badge">Por configurar</span></article>
           <article class="reset-option danger-option"><div><strong>Restablecer campeonato</strong><p>Reiniciará los datos deportivos. Debemos definir si conservará equipos, pagos y partidos.</p></div><span class="badge">Requiere definición</span></article>
           <article class="reset-option danger-option"><div><strong>Eliminar campeonato</strong><p>El campeonato dejará de aparecer en el sistema. Esta acción requiere escribir su nombre para confirmar.</p></div><button id="open-delete-championship" class="danger-button" type="button">Eliminar campeonato</button></article>
         </div>
@@ -36,4 +53,5 @@
     <div class="modal-actions"><span id="delete-status" class="form-status" role="status"></span><div class="button-group"><button id="cancel-delete-modal" class="secondary-button" type="button">Cancelar</button><button id="confirm-delete-championship" class="danger-button" type="button" disabled>Eliminar definitivamente</button></div></div>
   </dialog>
   <script type="module" src="js/app.js"></script><script type="module" src="js/ajustes.js"></script>
-</body></html>
+</body>
+</html>

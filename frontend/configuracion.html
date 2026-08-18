@@ -1,11 +1,28 @@
 <!doctype html>
 <html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Datos del campeonato | LigaControl</title><link rel="stylesheet" href="css/styles.css"></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Configuración | LigaControl</title>
+  <link rel="stylesheet" href="css/styles.css?v=20260818-5">
+</head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar championship-sidebar"><a class="back-link" href="dashboard.html">← Mis campeonatos</a><h2 id="sidebar-championship">Campeonato</h2><nav><a href="campeonato.html">Resumen</a><a class="active" href="configuracion.html">Datos del campeonato</a><a href="ajustes.html">Configuración</a></nav></aside>
+    <aside class="sidebar championship-sidebar">
+      <a class="back-link" href="dashboard.html">← Mis campeonatos</a>
+      <h2 id="sidebar-championship">Campeonato</h2>
+      <nav>
+        <a href="campeonato.html">Resumen</a>
+        <a href="equipos.html">Equipos</a>
+        <a href="partidos.html">Partidos</a>
+        <a href="resultados.html">Resultados</a>
+        <a href="sanciones.html">Sanciones y pagos</a>
+        <a href="reportes.html">Reportes</a>
+        <a class="active" href="configuracion.html">Configuración</a>
+      </nav>
+    </aside>
     <main class="main">
-      <header class="topbar"><div><small>Administración del campeonato</small><h1>Datos del campeonato</h1></div><button class="theme-toggle" data-theme-toggle>◐ Tema</button></header>
+      <header class="topbar"><div><small>Administración del campeonato</small><h1>Configuración</h1></div><div class="topbar-actions"><a class="secondary-button" href="ajustes.html">Ajustes avanzados</a><a class="secondary-button" href="publico.html">Vista pública ↗</a><button class="theme-toggle" data-theme-toggle>◐ Tema</button></div></header>
       <section class="card settings-card"><h2>Información general</h2><p class="muted">Aquí puedes corregir los datos generales. Las disciplinas se definen solamente al crear el campeonato.</p>
         <form id="settings-form" class="form-grid">
           <label class="field field-wide"><span>Nombre *</span><input name="name" required maxlength="150"></label>
@@ -31,4 +48,5 @@
     </main>
   </div>
   <script type="module" src="js/app.js"></script><script type="module" src="js/configuracion.js"></script>
-</body></html>
+</body>
+</html>

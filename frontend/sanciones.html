@@ -1,8 +1,35 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sanciones y pagos | LigaControl</title><link rel="stylesheet" href="css/styles.css?v=20260805-2"></head>
-<body><div class="app-shell">
-  <aside class="sidebar championship-sidebar"><a class="back-link" href="equipos.html">← Equipos</a><h2 id="sidebar-championship">Campeonato</h2><nav><a href="campeonato.html">Resumen</a><a href="equipos.html">Equipos</a><a href="partidos.html">Partidos</a><a href="resultados.html">Resultados</a><a class="active" href="sanciones.html">Sanciones y pagos</a><a href="reportes.html">Reportes</a><a href="publico.html">Vista pública ↗</a><a href="configuracion.html">Datos del campeonato</a><a href="ajustes.html">Configuración</a></nav></aside>
-  <main class="main"><header class="topbar"><div><small id="sanctions-context">Deporte seleccionado</small><h1>Sanciones y pagos</h1></div><div class="topbar-actions"><button id="recalculate-sanctions" class="secondary-button" type="button">Recalcular</button><button class="theme-toggle" data-theme-toggle>◐ Tema</button></div></header>
-    <section id="sanction-summary" class="sanction-summary-grid"></section>
-    <section class="card sanction-control-panel"><div class="section-heading"><div><h2>Control disciplinario</h2><p class="muted">Consulta deudas, suspensiones y pagos agrupados por equipo.</p></div><button id="clear-sanction-filters" class="secondary-button compact-button" type="button">Limpiar filtros</button></div><div class="sanction-filters"><label class="field"><span>Fecha</span><select id="sanction-round"><option value="">Todas las fechas</option></select></label><label class="field"><span>Equipo</span><select id="sanction-team"><option value="">Todos los equipos</option></select></label><label class="field"><span>Tarjeta</span><select id="sanction-type"><option value="">Todas</option><option value="YELLOW_CARD">Amarilla</option><option value="RED_CARD">Roja</option><option value="EXPULSION">Expulsión</option></select></label><label class="field"><span>Estado de pago</span><select id="sanction-payment"><option value="PENDING">Pendientes</option><option value="PAID">Pagadas</option><option value="">Todas</option></select></label></div><div id="sanction-groups" class="sanction-management-groups"><p class="muted">Cargando sanciones…</p></div><p id="sanction-status" class="form-status" role="status"></p></section>
-  </main>
-</div><script type="module" src="js/app.js?v=20260805-1"></script><script type="module" src="js/sanciones.js?v=20260805-1"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sanciones y pagos | LigaControl</title>
+  <link rel="stylesheet" href="css/styles.css?v=20260818-5">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar championship-sidebar">
+      <a class="back-link" href="equipos.html">← Equipos</a>
+      <h2 id="sidebar-championship">Campeonato</h2>
+      <nav>
+        <a href="campeonato.html">Resumen</a>
+        <a href="equipos.html">Equipos</a>
+        <a href="partidos.html">Partidos</a>
+        <a href="resultados.html">Resultados</a>
+        <a class="active" href="sanciones.html">Sanciones y pagos</a>
+        <a href="reportes.html">Reportes</a>
+        <a href="configuracion.html">Configuración</a>
+      </nav>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div><small id="sanctions-context">Deporte seleccionado</small><h1>Sanciones y pagos</h1></div>
+        <div class="topbar-actions"><a class="secondary-button" href="publico.html">Vista pública ↗</a><button id="recalculate-sanctions" class="secondary-button" type="button">Recalcular</button><button class="theme-toggle" data-theme-toggle>◐ Tema</button></div>
+      </header>
+      <section id="sanction-summary" class="sanction-summary-grid"></section>
+      <section class="card sanction-control-panel"><div class="section-heading"><div><h2>Control disciplinario</h2><p class="muted">Consulta deudas, suspensiones y pagos agrupados por equipo.</p></div><button id="clear-sanction-filters" class="secondary-button compact-button" type="button">Limpiar filtros</button></div><div class="sanction-filters"><label class="field"><span>Fecha</span><select id="sanction-round"><option value="">Todas las fechas</option></select></label><label class="field"><span>Equipo</span><select id="sanction-team"><option value="">Todos los equipos</option></select></label><label class="field"><span>Tarjeta</span><select id="sanction-type"><option value="">Todas</option><option value="YELLOW_CARD">Amarilla</option><option value="RED_CARD">Roja</option><option value="EXPULSION">Expulsión</option></select></label><label class="field"><span>Estado de pago</span><select id="sanction-payment"><option value="PENDING">Pendientes</option><option value="PAID">Pagadas</option><option value="">Todas</option></select></label></div><div id="sanction-groups" class="sanction-management-groups"><p class="muted">Cargando sanciones…</p></div><p id="sanction-status" class="form-status" role="status"></p></section>
+    </main>
+  </div>
+  <script type="module" src="js/app.js?v=20260805-1"></script><script type="module" src="js/sanciones.js?v=20260805-1"></script>
+</body>
+</html>

@@ -1,13 +1,41 @@
 <!doctype html>
 <html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Equipos | LigaControl</title><link rel="stylesheet" href="css/styles.css"></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Equipos | LigaControl</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar championship-sidebar"><a class="back-link" href="dashboard.html">← Mis campeonatos</a><h2 id="sidebar-championship">Campeonato</h2><nav><a href="campeonato.html">Resumen</a><a class="active" href="equipos.html">Equipos</a><a href="partidos.html">Partidos</a><a href="resultados.html">Resultados</a><a href="sanciones.html">Sanciones y pagos</a><a href="reportes.html">Reportes</a><a href="publico.html">Vista pública ↗</a><a href="configuracion.html">Datos del campeonato</a><a href="ajustes.html">Configuración</a></nav></aside>
+    <aside class="sidebar championship-sidebar">
+      <a class="back-link" href="dashboard.html">← Mis campeonatos</a>
+      <h2 id="sidebar-championship">Campeonato</h2>
+      <nav>
+        <a href="campeonato.html">Resumen</a>
+        <a class="active" href="equipos.html">Equipos</a>
+        <a href="partidos.html">Partidos</a>
+        <a href="resultados.html">Resultados</a>
+        <a href="sanciones.html">Sanciones y pagos</a>
+        <a href="reportes.html">Reportes</a>
+        <a href="configuracion.html">Configuración</a>
+      </nav>
+    </aside>
     <main class="main">
-      <header class="topbar"><div><small id="championship-context">Campeonato seleccionado</small><h1>Equipos</h1></div><div class="topbar-actions"><select id="active-discipline" class="context-select" aria-label="Disciplina"></select><button id="open-team-modal" class="action-button" type="button">+ Nuevo equipo</button><button class="theme-toggle" data-theme-toggle>◐ Tema</button></div></header>
+      <header class="topbar">
+        <div><small id="championship-context">Campeonato seleccionado</small><h1>Equipos</h1></div>
+        <div class="topbar-actions">
+          <select id="active-discipline" class="context-select" aria-label="Disciplina"></select>
+          <a class="secondary-button" href="publico.html">Vista pública ↗</a>
+          <button id="open-team-modal" class="action-button" type="button">+ Nuevo equipo</button>
+          <button class="theme-toggle" data-theme-toggle>◐ Tema</button>
+        </div>
+      </header>
       <section class="card championships-panel">
-        <div class="section-heading"><div><h2>Equipos registrados <span id="team-count" class="badge">0</span></h2><p class="muted">Equipos participantes del campeonato activo.</p></div><button id="reload-teams" class="secondary-button" type="button">Actualizar</button></div>
+        <div class="section-heading">
+          <div><h2>Equipos registrados <span id="team-count" class="badge">0</span></h2><p class="muted">Equipos participantes del campeonato activo.</p></div>
+          <button id="reload-teams" class="secondary-button" type="button">Actualizar</button>
+        </div>
         <div id="team-list" class="championship-grid" aria-live="polite"><p class="muted">Cargando…</p></div>
       </section>
     </main>
@@ -23,4 +51,5 @@
     </form>
   </dialog>
   <script type="module" src="js/app.js"></script><script type="module" src="js/equipos.js"></script>
-</body></html>
+</body>
+</html>
