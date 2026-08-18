@@ -463,8 +463,8 @@ var PlayerService = {
     if (!teamExists) throw appError('NOT_FOUND', 'El equipo seleccionado no existe.', 404);
     if (input.dni && !/^\d{8}$/.test(input.dni)) throw appError('VALIDATION_ERROR', 'El DNI debe tener exactamente 8 números.', 400);
     if (input.numero_camiseta !== '' && (!Number.isInteger(input.numero_camiseta) || input.numero_camiseta < 0 || input.numero_camiseta > 99)) throw appError('VALIDATION_ERROR', 'El número de camiseta debe estar entre 0 y 99.', 400);
-    var duplicate = input.dni && listSheetRecords(SHEETS.PLAYERS).some(function (item) { return String(item.dni) === input.dni && String(item.estado) !== 'INACTIVE'; });
-    if (duplicate) throw appError('CONFLICT', 'Ya existe un jugador activo con ese DNI.', 409);
+    var duplicate = input.dni && listSheetRecords(SHEETS.PLAYERS).find(function (item) { return String(item.dni) === input.dni && String(item.estado) !== 'INACTIVE'; });
+    if (duplicate) throw appError('CONFLICT', duplicateDniMessage(input.dni, duplicate.equipo_id, input.equipo_id), 409);
     if (input.numero_camiseta !== '' && hasDuplicateShirtNumber(input.equipo_id, input.numero_camiseta)) {
       throw appError('CONFLICT', 'Ese número de camiseta ya está asignado a otro jugador del equipo.', 409);
     }
@@ -492,10 +492,10 @@ var PlayerService = {
     if (effectiveShirtNumber !== '' && (!Number.isInteger(Number(effectiveShirtNumber)) || Number(effectiveShirtNumber) < 0 || Number(effectiveShirtNumber) > 99)) {
       throw appError('VALIDATION_ERROR', 'El número de camiseta debe estar entre 0 y 99.', 400);
     }
-    var duplicateDni = effectiveDni && listSheetRecords(SHEETS.PLAYERS).some(function (item) {
+    var duplicateDni = effectiveDni && listSheetRecords(SHEETS.PLAYERS).find(function (item) {
       return String(item.id) !== String(body.id) && String(item.dni) === effectiveDni && String(item.estado) !== 'INACTIVE';
     });
-    if (duplicateDni) throw appError('CONFLICT', 'Ya existe otro jugador activo con ese DNI.', 409);
+    if (duplicateDni) throw appError('CONFLICT', duplicateDniMessage(effectiveDni, duplicateDni.equipo_id, effectiveTeamId), 409);
     if (effectiveShirtNumber !== '' && hasDuplicateShirtNumber(effectiveTeamId, Number(effectiveShirtNumber), body.id)) {
       throw appError('CONFLICT', 'Ese número de camiseta ya está asignado a otro jugador del equipo.', 409);
     }
@@ -510,6 +510,13 @@ var PlayerService = {
     return toPlayerResponse(updateSheetRecord(SHEETS.PLAYERS, id, { estado: 'INACTIVE', updated_at: nowIso() }));
   }
 };
+
+function duplicateDniMessage(dni, registeredTeamId, requestedTeamId) {
+  var team = listSheetRecords(SHEETS.TEAMS).find(function (item) { return String(item.id) === String(registeredTeamId); });
+  var registeredTeamName = team && team.nombre ? String(team.nombre) : 'otro equipo';
+  if (String(registeredTeamId) === String(requestedTeamId)) return 'El DNI ' + dni + ' ya está inscrito en este equipo (' + registeredTeamName + ').';
+  return 'El DNI ' + dni + ' ya está inscrito en el equipo ' + registeredTeamName + '.';
+}
 
 function hasDuplicateShirtNumber(teamId, shirtNumber, excludedId) {
   return listSheetRecords(SHEETS.PLAYERS).some(function (item) {
@@ -568,6 +575,7 @@ var MatchService = {
     var current = listSheetRecords(SHEETS.MATCHES).find(function (item) { return String(item.id) === String(body.id); });
     if (!current) throw appError('NOT_FOUND', 'El partido no existe.', 404);
     if (body.lockRound) return lockMatchRound(current);
+    if (body.unlockRound) return unlockMatchRound(current);
     if (isMatchLocked(current)) throw appError('CONFLICT', 'La fecha está cerrada y sus partidos ya no se pueden editar.', 409);
     if (body.walkoverTeamId) {
       if ([String(current.local_id), String(current.visitante_id)].indexOf(String(body.walkoverTeamId)) === -1) throw appError('VALIDATION_ERROR', 'El equipo ausente no pertenece a este partido.', 400);
@@ -682,6 +690,21 @@ function lockMatchRound(current) {
     return updateSheetRecord(SHEETS.MATCHES, item.id, { cerrado: true, estado: 'FINISHED', ganador_id: homeScore === awayScore ? '' : homeScore > awayScore ? item.local_id : item.visitante_id, observaciones: JSON.stringify(metadata), updated_at: timestamp });
   });
   return { items: updated.map(toMatchResponse), total: updated.length, round: Number(current.jornada), locked: true };
+}
+
+function unlockMatchRound(current) {
+  var roundMatches = listSheetRecords(SHEETS.MATCHES).filter(function (item) {
+    return String(item.campeonato_id) === String(current.campeonato_id) && String(item.disciplina_id) === String(current.disciplina_id) && Number(item.jornada) === Number(current.jornada) && String(item.estado) !== 'INACTIVE';
+  });
+  var timestamp = nowIso();
+  var updated = roundMatches.map(function (item) {
+    var metadata = {};
+    try { metadata = JSON.parse(item.observaciones || '{}'); } catch (error) { metadata = {}; }
+    metadata.roundLocked = false;
+    metadata.roundUnlockedAt = timestamp;
+    return updateSheetRecord(SHEETS.MATCHES, item.id, { cerrado: false, estado: 'SCHEDULED', ganador_id: '', observaciones: JSON.stringify(metadata), updated_at: timestamp });
+  });
+  return { items: updated.map(toMatchResponse), total: updated.length, round: Number(current.jornada), locked: false };
 }
 
 function formatMatchDate(value) {
@@ -856,7 +879,8 @@ function createSanctionForEvent(eventRecord, match) {
   var eventIndex = playerCards.findIndex(function (x) { return String(x.id) === String(eventRecord.id); });
   var count = eventIndex >= 0 ? eventIndex + 1 : playerCards.length;
   var yellow = eventRecord.tipo === 'YELLOW_CARD', suspension = yellow && count % Number(settings.YELLOW_CARDS_FOR_SUSPENSION || 2) === 0 ? Number(settings.YELLOW_SUSPENSION_MATCHES || 1) : yellow ? 0 : Number(settings.RED_SUSPENSION_MATCHES || 2), expelled = !yellow && count >= Number(settings.RED_CARDS_FOR_EXPULSION || 2), amount = Number(yellow ? settings.YELLOW_CARD_COST : settings.RED_CARD_COST), timestamp = nowIso();
-  var record = { id: generateUuid(), campeonato_id: match.campeonato_id, evento_id: eventRecord.id, equipo_id: eventRecord.equipo_id, jugador_id: eventRecord.jugador_id, tipo: expelled ? 'EXPULSION' : eventRecord.tipo, motivo: expelled ? 'Expulsión por acumulación de tarjetas rojas' : yellow ? 'Tarjeta amarilla' : 'Tarjeta roja directa', fechas_suspension: suspension, monto: amount, fecha_inicio: match.fecha || '', fecha_fin: '', estado: 'ACTIVE', created_at: timestamp, updated_at: timestamp, observaciones: JSON.stringify({ accumulatedCards: count }) };
+  var reason = expelled ? 'Expulsión por acumulación de tarjetas rojas' : yellow && suspension ? 'Acumulación de tarjetas amarillas' : yellow ? 'Tarjeta amarilla' : 'Tarjeta roja directa';
+  var record = { id: generateUuid(), campeonato_id: match.campeonato_id, evento_id: eventRecord.id, equipo_id: eventRecord.equipo_id, jugador_id: eventRecord.jugador_id, tipo: expelled ? 'EXPULSION' : eventRecord.tipo, motivo: reason, fechas_suspension: suspension, monto: amount, fecha_inicio: match.fecha || '', fecha_fin: '', estado: 'ACTIVE', created_at: timestamp, updated_at: timestamp, observaciones: JSON.stringify({ accumulatedCards: count }) };
   appendSheetRecord(SHEETS.SANCTIONS, record); createPendingPayment(record); return record;
 }
 function deactivateSanctionForEvent(eventId) { listSheetRecords(SHEETS.SANCTIONS).filter(function (x) { return String(x.evento_id) === String(eventId) && String(x.estado) !== 'INACTIVE'; }).forEach(function (sanction) { updateSheetRecord(SHEETS.SANCTIONS, sanction.id, { estado: 'INACTIVE', updated_at: nowIso() }); listSheetRecords(SHEETS.PAYMENTS).filter(function (p) { return String(p.sancion_id) === String(sanction.id) && String(p.estado) !== 'INACTIVE'; }).forEach(function (p) { updateSheetRecord(SHEETS.PAYMENTS, p.id, { estado: 'INACTIVE', updated_at: nowIso() }); }); }); }

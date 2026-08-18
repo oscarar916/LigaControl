@@ -1,21 +1,139 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Partidos | LigaControl</title><link rel="stylesheet" href="css/styles.css?v=20260804-8"></head>
-<body><div class="app-shell">
-  <aside class="sidebar championship-sidebar"><a class="back-link" href="equipos.html">← Equipos</a><h2 id="sidebar-championship">Campeonato</h2><nav><a href="campeonato.html">Resumen</a><a href="equipos.html">Equipos</a><a class="active" href="partidos.html">Partidos</a><a href="resultados.html">Resultados</a><a href="sanciones.html">Sanciones y pagos</a><a href="reportes.html">Reportes</a><a href="publico.html">Vista pública ↗</a><a href="configuracion.html">Datos del campeonato</a><a href="ajustes.html">Configuración</a></nav></aside>
-  <main class="main"><header class="topbar"><div><small id="fixture-context">Disciplina seleccionada</small><h1>Partidos</h1></div><button class="theme-toggle" data-theme-toggle>◐ Tema</button></header>
-    <section id="fixture-builder" class="card fixture-builder">
-      <div class="section-heading"><div><h2>Generar fixture</h2><p class="muted">Configura el todos contra todos antes de guardar.</p></div><span id="fixture-team-count" class="badge">0 equipos</span></div>
-      <div class="form-grid">
-        <label class="field field-wide"><span>Método de generación</span><select id="fixture-method"><option value="registration">Usar orden de inscripción</option><option value="random">Sorteo automático</option><option value="external">Sorteo realizado externamente</option><option value="paired-reverse">Numeración por parejas (Vóley: 1–2, 3–4…)</option></select></label>
-        <label class="check-field field-wide"><input id="manual-first-round" type="checkbox"><span>La primera fecha ya fue sorteada y deseo registrarla manualmente</span></label>
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Partidos | LigaControl</title>
+  <link rel="stylesheet" href="css/styles.css?v=20260818-10">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar championship-sidebar">
+      <a class="back-link" href="equipos.html">â† Equipos</a>
+      <h2 id="sidebar-championship">Campeonato</h2>
+      <nav>
+        <a href="campeonato.html">Resumen</a>
+        <a href="equipos.html">Equipos</a>
+        <a class="active" href="partidos.html">Partidos</a>
+        <a href="resultados.html">Resultados</a>
+        <a href="sanciones.html">Sanciones y pagos</a>
+        <a href="reportes.html">Reportes</a>
+        <a href="publico.html">Vista pÃºblica â†—</a>
+        <a href="configuracion.html">Datos del campeonato</a>
+        <a href="ajustes.html">ConfiguraciÃ³n</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <small id="fixture-context">Disciplina seleccionada</small>
+          <h1>Partidos</h1>
+        </div>
+        <button class="theme-toggle" data-theme-toggle>â— Tema</button>
+      </header>
+
+      <section id="fixture-builder" class="card fixture-builder">
+        <div class="section-heading">
+          <div>
+            <h2>Generar fixture</h2>
+            <p class="muted">Configura el todos contra todos antes de guardar.</p>
+          </div>
+          <span id="fixture-team-count" class="badge">0 equipos</span>
+        </div>
+
+        <div class="form-grid">
+          <label class="field field-wide">
+            <span>MÃ©todo de generaciÃ³n</span>
+            <select id="fixture-method">
+              <option value="registration">Usar orden de inscripciÃ³n</option>
+              <option value="random">Sorteo automÃ¡tico</option>
+              <option value="external">Sorteo realizado externamente</option>
+              <option value="paired-reverse">NumeraciÃ³n por parejas (VÃ³ley: 1â€“2, 3â€“4â€¦)</option>
+            </select>
+          </label>
+
+          <label class="check-field field-wide">
+            <input id="manual-first-round" type="checkbox">
+            <span>La primera fecha ya fue sorteada y deseo registrarla manualmente</span>
+          </label>
+        </div>
+
+        <div id="external-order" class="fixture-configuration" hidden></div>
+        <div id="manual-round" class="fixture-configuration" hidden></div>
+
+        <div class="form-actions">
+          <button id="generate-fixture" class="action-button" type="button">Generar vista previa</button>
+          <span id="fixture-status" class="form-status"></span>
+        </div>
+      </section>
+
+      <section id="fixture-preview" class="card fixture-preview" hidden>
+        <div id="print-fixture-header" class="print-fixture-header">
+          <small>PROGRAMACIÃ“N OFICIAL</small>
+          <h1 id="print-championship-name">Campeonato</h1>
+          <p id="print-discipline-name">Deporte</p>
+        </div>
+
+        <div class="section-heading fixture-heading">
+          <div>
+            <h2>ProgramaciÃ³n</h2>
+            <p class="muted">Revisa fechas y orden antes de guardar.</p>
+          </div>
+          <div class="button-group">
+            <button id="general-view" class="secondary-button" type="button">Vista general</button>
+            <button id="share-fixture" class="secondary-button" type="button">Compartir</button>
+            <button id="print-fixture" class="secondary-button" type="button">Imprimir / PDF</button>
+            <button id="save-fixture" class="action-button" type="button">Guardar y bloquear fixture</button>
+          </div>
+          <span id="share-fixture-status" class="form-status"></span>
+        </div>
+
+        <div id="round-tabs" class="round-tabs"></div>
+        <div id="round-content"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="schedule-modal" class="app-modal">
+    <div class="modal-header">
+      <div>
+        <small>ProgramaciÃ³n</small>
+        <h2 id="schedule-title">Programar fecha</h2>
+        <p id="schedule-description" class="muted">Indica la hora del primer partido. Los siguientes se calcularÃ¡n automÃ¡ticamente en el mismo escenario.</p>
       </div>
-      <div id="external-order" class="fixture-configuration" hidden></div>
-      <div id="manual-round" class="fixture-configuration" hidden></div>
-      <div class="form-actions"><button id="generate-fixture" class="action-button" type="button">Generar vista previa</button><span id="fixture-status" class="form-status"></span></div>
-    </section>
-    <section id="fixture-preview" class="card fixture-preview" hidden><div id="print-fixture-header" class="print-fixture-header"><small>PROGRAMACIÓN OFICIAL</small><h1 id="print-championship-name">Campeonato</h1><p id="print-discipline-name">Deporte</p></div><div class="section-heading fixture-heading"><div><h2>Programación</h2><p class="muted">Revisa fechas y orden antes de guardar.</p></div><div class="button-group"><button id="general-view" class="secondary-button" type="button">Vista general</button><button id="share-fixture" class="secondary-button" type="button">Compartir</button><button id="print-fixture" class="secondary-button" type="button">Imprimir / PDF</button><button id="save-fixture" class="action-button" type="button">Guardar y bloquear fixture</button></div><span id="share-fixture-status" class="form-status"></span></div><div id="round-tabs" class="round-tabs"></div><div id="round-content"></div></section>
-  </main>
-</div>
-<dialog id="schedule-modal" class="app-modal"><div class="modal-header"><div><small>Programación</small><h2 id="schedule-title">Programar fecha</h2><p id="schedule-description" class="muted">Indica la hora del primer partido. Los siguientes se calcularán automáticamente en el mismo escenario.</p></div><button id="close-schedule-modal" class="icon-button" type="button">×</button></div>
-  <form id="schedule-form" class="form-grid"><label class="field"><span>Fecha de la jornada *</span><input name="date" type="date" required></label><label class="field"><span>Hora del primer partido *</span><input name="startTime" type="time" required></label><label class="field field-wide"><span>Lugar para todos los partidos *</span><input name="venue" required maxlength="150" placeholder="Ej. Coliseo Municipal"></label><div class="schedule-rule field-wide"><strong id="schedule-interval">Intervalo automático</strong><span>La vista previa muestra la hora calculada para cada partido.</span></div><div id="schedule-times-preview" class="field-wide schedule-times-preview"></div><div class="modal-actions field-wide"><span id="schedule-status" class="form-status"></span><div class="button-group"><button id="cancel-schedule-modal" class="secondary-button" type="button">Cancelar</button><button class="action-button" type="submit">Guardar programación</button></div></div></form>
-</dialog>
-<script type="module" src="js/app.js?v=20260804-2"></script><script type="module" src="js/partidos.js?v=20260805-8"></script></body></html>
+      <button id="close-schedule-modal" class="icon-button" type="button">Ã—</button>
+    </div>
+
+    <form id="schedule-form" class="form-grid">
+      <label class="field">
+        <span>Fecha de la jornada *</span>
+        <input name="date" type="date" required>
+      </label>
+      <label class="field">
+        <span>Hora del primer partido *</span>
+        <input name="startTime" type="time" required>
+      </label>
+      <label class="field field-wide">
+        <span>Lugar para todos los partidos *</span>
+        <input name="venue" required maxlength="150" placeholder="Ej. Coliseo Municipal">
+      </label>
+      <div class="schedule-rule field-wide">
+        <strong id="schedule-interval">Intervalo automÃ¡tico</strong>
+        <span>La vista previa muestra la hora calculada para cada partido.</span>
+      </div>
+      <div id="schedule-times-preview" class="field-wide schedule-times-preview"></div>
+      <div class="modal-actions field-wide">
+        <span id="schedule-status" class="form-status"></span>
+        <div class="button-group">
+          <button id="cancel-schedule-modal" class="secondary-button" type="button">Cancelar</button>
+          <button class="action-button" type="submit">Guardar programaciÃ³n</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js?v=20260804-2"></script>
+  <script type="module" src="js/partidos.js?v=20260818-10"></script>
+</body>
+</html>

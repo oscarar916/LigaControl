@@ -17,8 +17,8 @@ var PlayerService = {
     if (!teamExists) throw appError('NOT_FOUND', 'El equipo seleccionado no existe.', 404);
     if (input.dni && !/^\d{8}$/.test(input.dni)) throw appError('VALIDATION_ERROR', 'El DNI debe tener exactamente 8 números.', 400);
     if (input.numero_camiseta !== '' && (!Number.isInteger(input.numero_camiseta) || input.numero_camiseta < 0 || input.numero_camiseta > 99)) throw appError('VALIDATION_ERROR', 'El número de camiseta debe estar entre 0 y 99.', 400);
-    var duplicate = input.dni && listSheetRecords(SHEETS.PLAYERS).some(function (item) { return String(item.dni) === input.dni && String(item.estado) !== 'INACTIVE'; });
-    if (duplicate) throw appError('CONFLICT', 'Ya existe un jugador activo con ese DNI.', 409);
+    var duplicate = input.dni && listSheetRecords(SHEETS.PLAYERS).find(function (item) { return String(item.dni) === input.dni && String(item.estado) !== 'INACTIVE'; });
+    if (duplicate) throw appError('CONFLICT', duplicateDniMessage(input.dni, duplicate.equipo_id, input.equipo_id), 409);
     if (input.numero_camiseta !== '' && hasDuplicateShirtNumber(input.equipo_id, input.numero_camiseta)) {
       throw appError('CONFLICT', 'Ese número de camiseta ya está asignado a otro jugador del equipo.', 409);
     }
@@ -46,10 +46,10 @@ var PlayerService = {
     if (effectiveShirtNumber !== '' && (!Number.isInteger(Number(effectiveShirtNumber)) || Number(effectiveShirtNumber) < 0 || Number(effectiveShirtNumber) > 99)) {
       throw appError('VALIDATION_ERROR', 'El número de camiseta debe estar entre 0 y 99.', 400);
     }
-    var duplicateDni = effectiveDni && listSheetRecords(SHEETS.PLAYERS).some(function (item) {
+    var duplicateDni = effectiveDni && listSheetRecords(SHEETS.PLAYERS).find(function (item) {
       return String(item.id) !== String(body.id) && String(item.dni) === effectiveDni && String(item.estado) !== 'INACTIVE';
     });
-    if (duplicateDni) throw appError('CONFLICT', 'Ya existe otro jugador activo con ese DNI.', 409);
+    if (duplicateDni) throw appError('CONFLICT', duplicateDniMessage(effectiveDni, duplicateDni.equipo_id, effectiveTeamId), 409);
     if (effectiveShirtNumber !== '' && hasDuplicateShirtNumber(effectiveTeamId, Number(effectiveShirtNumber), body.id)) {
       throw appError('CONFLICT', 'Ese número de camiseta ya está asignado a otro jugador del equipo.', 409);
     }
@@ -64,6 +64,13 @@ var PlayerService = {
     return toPlayerResponse(updateSheetRecord(SHEETS.PLAYERS, id, { estado: 'INACTIVE', updated_at: nowIso() }));
   }
 };
+
+function duplicateDniMessage(dni, registeredTeamId, requestedTeamId) {
+  var team = listSheetRecords(SHEETS.TEAMS).find(function (item) { return String(item.id) === String(registeredTeamId); });
+  var registeredTeamName = team && team.nombre ? String(team.nombre) : 'otro equipo';
+  if (String(registeredTeamId) === String(requestedTeamId)) return 'El DNI ' + dni + ' ya está inscrito en este equipo (' + registeredTeamName + ').';
+  return 'El DNI ' + dni + ' ya está inscrito en el equipo ' + registeredTeamName + '.';
+}
 
 function hasDuplicateShirtNumber(teamId, shirtNumber, excludedId) {
   return listSheetRecords(SHEETS.PLAYERS).some(function (item) {

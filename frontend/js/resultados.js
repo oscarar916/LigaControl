@@ -8,16 +8,87 @@ const standingsBody = document.querySelector('#standings-body');
 const modal = document.querySelector('#match-sheet-modal');
 const scoreForm = document.querySelector('#final-score-form');
 const notesForm = document.querySelector('#minute-notes-form');
-let teams = [], matches = [], players = [], events = [], minutes = [], sanctions = [], payments = [], activeMatch, lineupDraft = { home: [], away: [] };
+const quickPlayerModal = document.querySelector('#quick-player-modal');
+const quickPlayerForm = document.querySelector('#quick-player-form');
+let teams = [], matches = [], players = [], events = [], minutes = [], sanctions = [], payments = [], currentDiscipline = null, activeMatch, lineupDraft = { home: [], away: [] };
 
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
 const teamName = id => teams.find(team => team.id === id)?.name || 'Equipo';
+const normalizeDni = value => String(value || '').replace(/\D/g, '');
+const isVolley = () => /v[oó]ley|volley/i.test(currentDiscipline?.name || '');
+const playerRosterLabel = player => {
+  const shirtNumber = String(player?.shirtNumber ?? '').trim();
+  return shirtNumber ? `${shirtNumber} - ${player.fullName}` : player.fullName;
+};
+
+function matchWinnerId(match) {
+  if (match.homeScore === '' || match.awayScore === '') return '';
+  const homeScore = Number(match.homeScore);
+  const awayScore = Number(match.awayScore);
+  if (homeScore === awayScore) return '';
+  return homeScore > awayScore ? match.homeId : match.awayId;
+}
+
+function volleyMatchCard(match) {
+  const winnerId = matchWinnerId(match);
+  const locked = Boolean(match.roundLocked);
+  const winnerLabel = winnerId ? `Ganador: ${teamName(winnerId)}` : 'Pendiente de ganador';
+  return `<article class="result-match-card volleyball-result-card${locked ? ' finished' : ''}" data-match-id="${match.id}"><div class="result-team"><strong>${esc(teamName(match.homeId))}</strong><span>Equipo A</span></div><span class="versus-badge">VS</span><div class="result-team away"><strong>${esc(teamName(match.awayId))}</strong><span>Equipo B</span></div><div class="volley-winner-control"><label class="field volley-winner-field"><span>Ganador del partido</span><select data-volley-winner="${match.id}" ${locked ? 'disabled' : ''}><option value="">Seleccionar ganador</option><option value="${match.homeId}"${winnerId === match.homeId ? ' selected' : ''}>${esc(teamName(match.homeId))}</option><option value="${match.awayId}"${winnerId === match.awayId ? ' selected' : ''}>${esc(teamName(match.awayId))}</option></select></label><button class="action-button compact-button" type="button" data-save-volley-winner="${match.id}" ${locked ? 'disabled' : ''}>Guardar ganador</button><span class="volley-winner-status ${winnerId ? 'success-message' : ''}">${esc(winnerLabel)}</span></div><small class="result-schedule">${match.date ? String(match.date).slice(0, 10) : 'Sin fecha'} · ${match.time || 'Sin hora'} · ${esc(match.venue || 'Sin escenario')}</small></article>`;
+}
+
+function duplicatePlayerByDni(dni) {
+  const normalizedDni = normalizeDni(dni);
+  if (!normalizedDni) return null;
+  return players.find(player => player.status !== 'INACTIVE' && normalizeDni(player.dni) === normalizedDni);
+}
+
+function duplicatePlayerMessage(player, requestedTeamId) {
+  const registeredTeamName = teamName(player.teamId);
+  if (String(player.teamId) === String(requestedTeamId)) {
+    return `Este DNI ya esta registrado en este mismo equipo: ${registeredTeamName}.`;
+  }
+  return `Este DNI ya esta registrado en el equipo ${registeredTeamName}.`;
+}
 
 function renderMatches() {
   const round = Number(roundSelect.value);
   const items = matches.filter(match => match.round === round).sort((a, b) => a.order - b.order);
+  if (isVolley()) {
+    matchList.innerHTML = items.length ? items.map(volleyMatchCard).join('') : '<div class="empty-state"><strong>No hay partidos en esta fecha</strong></div>';
+    updateRoundControls();
+    return;
+  }
   matchList.innerHTML = items.length ? items.map(match => `<button class="result-match-card clickable-match${match.roundLocked ? ' finished' : ''}" type="button" data-match-id="${match.id}"><div class="result-team"><strong>${esc(teamName(match.homeId))}</strong><span>Local</span></div><span class="result-score">${match.homeScore === '' ? '–' : match.homeScore}</span><span class="score-separator">–</span><span class="result-score">${match.awayScore === '' ? '–' : match.awayScore}</span><div class="result-team away"><strong>${esc(teamName(match.awayId))}</strong><span>Visitante</span></div><span class="manage-label">${match.isWalkover ? 'W.O. · ' : ''}${match.roundLocked ? 'Consultar acta' : 'Abrir acta'} →</span><small class="result-schedule">${match.date ? String(match.date).slice(0, 10) : 'Sin fecha'} · ${match.time || 'Sin hora'} · ${esc(match.venue || 'Sin escenario')}</small></button>`).join('') : '<div class="empty-state"><strong>No hay partidos en esta fecha</strong></div>';
   updateRoundControls();
+}
+
+async function saveVolleyWinner(matchId, winnerId, button) {
+  const match = matches.find(item => item.id === matchId);
+  if (!match || !winnerId) return;
+  const status = button.closest('.volleyball-result-card')?.querySelector('.volley-winner-status');
+  button.disabled = true;
+  if (status) {
+    status.textContent = 'Guardando ganador...';
+    status.className = 'volley-winner-status';
+  }
+  try {
+    const response = await apiPut('/api/matches', {
+      id: match.id,
+      homeScore: winnerId === match.homeId ? 1 : 0,
+      awayScore: winnerId === match.awayId ? 1 : 0,
+      closed: false,
+      walkoverTeamId: ''
+    });
+    matches = matches.map(item => item.id === response.data.id ? response.data : item);
+    renderMatches();
+    renderStandings();
+  } catch (error) {
+    if (status) {
+      status.textContent = error.message;
+      status.className = 'volley-winner-status error-message';
+    }
+    button.disabled = false;
+  }
 }
 
 function updateRoundControls() {
@@ -25,9 +96,14 @@ function updateRoundControls() {
   const roundMatches = matches.filter(match => match.round === round);
   const locked = roundMatches.length > 0 && roundMatches.every(match => match.roundLocked);
   const button = document.querySelector('#lock-result-round');
+  const unlockButton = document.querySelector('#unlock-result-round');
   button.disabled = locked || !roundMatches.length;
   button.textContent = locked ? `Fecha ${round} cerrada` : `Cerrar Fecha ${round}`;
-  document.querySelector('#round-lock-status').textContent = locked ? 'Resultados oficiales: esta fecha ya no se puede editar.' : '';
+  unlockButton.hidden = !locked;
+  unlockButton.disabled = !locked;
+  const status = document.querySelector('#round-lock-status');
+  status.className = 'form-status';
+  status.textContent = locked ? 'Resultados oficiales: esta fecha ya no se puede editar.' : '';
 }
 
 function standings() {
@@ -45,18 +121,31 @@ function standings() {
 }
 
 function renderStandings() {
-  standingsBody.innerHTML = standings().map((item, index) => `<tr class="${index < 8 ? 'qualified-row' : ''}"><td><strong>${index + 1}</strong></td><td>${esc(item.team.name)}</td><td>${item.pj}</td><td>${item.pg}</td><td>${item.pe}</td><td>${item.pp}</td><td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td><td><strong>${item.pts}</strong></td></tr>`).join('');
+  const rows = standings();
+  standingsBody.innerHTML = rows.map((item, index) => `<tr class="${rows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''}"><td><strong>${index + 1}</strong></td><td>${esc(item.team.name)}</td><td>${item.pj}</td><td>${item.pg}</td><td>${item.pe}</td><td>${item.pp}</td><td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td><td><strong>${item.pts}</strong></td></tr>`).join('');
 }
 
 function renderSanctions() {
   const body = document.querySelector('#sanctions-body');
   const paymentFor = sanctionId => payments.find(payment => payment.sanctionId === sanctionId);
+  const suspensionText = sanction => {
+    const matches = Number(sanction.suspensionMatches || 0);
+    if (!matches) return 'Sin suspensión';
+    const reason = sanction.reason && sanction.reason !== 'Tarjeta amarilla'
+      ? sanction.reason
+      : sanction.type === 'YELLOW_CARD'
+        ? 'Acumulación de tarjetas amarillas'
+        : sanction.type === 'RED_CARD'
+          ? 'Tarjeta roja directa'
+          : 'Expulsión';
+    return `<strong>${matches} fecha${matches === 1 ? '' : 's'}</strong><small>${esc(reason)}</small>`;
+  };
   body.innerHTML = sanctions.length ? sanctions.map(sanction => {
     const player = players.find(item => item.id === sanction.playerId);
     const payment = paymentFor(sanction.id);
     const paid = payment?.status === 'PAID';
     const label = sanction.type === 'YELLOW_CARD' ? '🟨 Amarilla' : sanction.type === 'RED_CARD' ? '🟥 Roja directa' : '⛔ Expulsión';
-    return `<tr><td><strong>${esc(player?.fullName || 'Jugador')}</strong></td><td>${esc(teamName(sanction.teamId))}</td><td>${label}</td><td>${sanction.suspensionMatches ? `${sanction.suspensionMatches} fecha(s)` : 'Sin suspensión'}</td><td><strong>S/ ${Number(sanction.amount).toFixed(2)}</strong></td><td><span class="badge ${paid ? 'paid-badge' : 'pending-badge'}">${paid ? 'Pagado' : 'Pendiente'}</span></td><td>${payment && !paid ? `<button class="secondary-button compact-button" type="button" data-mark-paid="${payment.id}">Marcar pagado</button>` : ''}</td></tr>`;
+    return `<tr><td><strong>${esc(player?.fullName || 'Jugador')}</strong></td><td>${esc(teamName(sanction.teamId))}</td><td>${label}</td><td class="suspension-cell">${suspensionText(sanction)}</td><td><strong>S/ ${Number(sanction.amount).toFixed(2)}</strong></td><td><span class="badge ${paid ? 'paid-badge' : 'pending-badge'}">${paid ? 'Pagado' : 'Pendiente'}</span></td><td>${payment && !paid ? `<button class="secondary-button compact-button" type="button" data-mark-paid="${payment.id}">Marcar pagado</button>` : ''}</td></tr>`;
   }).join('') : '<tr><td colspan="7" class="empty-state">No hay sanciones registradas.</td></tr>';
   const pending = payments.filter(payment => payment.status === 'PENDING').reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   document.querySelector('#pending-total').textContent = `S/ ${pending.toFixed(2)}`;
@@ -87,7 +176,7 @@ function updateWalkoverScorer() {
   }
   const winnerTeamId = absentTeamId === activeMatch.homeId ? activeMatch.awayId : activeMatch.homeId;
   const roster = activeRoster(winnerTeamId);
-  scorerSelect.innerHTML = `<option value="">Seleccionar jugador de ${esc(teamName(winnerTeamId))}</option>${roster.map(player => `<option value="${player.id}">${esc(player.fullName)}</option>`).join('')}`;
+  scorerSelect.innerHTML = `<option value="">Seleccionar jugador de ${esc(teamName(winnerTeamId))}</option>${roster.map(player => `<option value="${player.id}">${esc(playerRosterLabel(player))}</option>`).join('')}`;
   scorerSelect.disabled = roster.length === 0;
   if (!roster.length) scorerSelect.innerHTML = '<option value="">El equipo ganador no tiene jugadores registrados</option>';
   preview.innerHTML = `<small>Vista previa</small><strong>${esc(teamName(winnerTeamId))} <span>3–0</span> ${esc(teamName(absentTeamId))}</strong><p>No se presentó: ${esc(teamName(absentTeamId))}</p>`;
@@ -112,7 +201,7 @@ function selectedAt(teamId, role, slot) {
 }
 function playerOptions(teamId, currentId) {
   const selectedIds = new Set(lineupDraft[lineupSide(teamId)].map(item => item.playerId));
-  return `<option value="">Seleccionar jugador</option>${activeRoster(teamId).map(player => `<option value="${player.id}"${player.id === currentId ? ' selected' : ''}${selectedIds.has(player.id) && player.id !== currentId ? ' disabled' : ''}>${esc(player.fullName)}</option>`).join('')}`;
+  return `<option value="">Seleccionar jugador</option>${activeRoster(teamId).map(player => `<option value="${player.id}"${player.id === currentId ? ' selected' : ''}${selectedIds.has(player.id) && player.id !== currentId ? ' disabled' : ''}>${esc(playerRosterLabel(player))}</option>`).join('')}`;
 }
 
 function quickButton(player, teamId, type, cssClass, label) {
@@ -130,9 +219,22 @@ function renderRosters() {
       const shirtLabel = player && player.shirtNumber !== '' ? `${player.shirtNumber}` : `${role === 'TITULAR' ? 'T' : 'S'}${slot}`;
       return `<tr class="lineup-slot-row ${role === 'TITULAR' ? 'starter-row' : 'substitute-row'}"><td class="slot-label"><span>${shirtLabel}</span><small>${label}</small></td><td><select class="player-slot-select" data-lineup-role="${role}" data-lineup-slot="${slot}" data-lineup-team="${teamId}" aria-label="${label} ${slot}">${playerOptions(teamId, playerId)}</select></td><td>${player ? quickButton(player, teamId, 'GOAL', 'goal-event', 'gol') : '—'}</td><td>${player ? quickButton(player, teamId, 'YELLOW_CARD', 'yellow-card', 'tarjeta amarilla') : '—'}</td><td>${player ? quickButton(player, teamId, 'RED_CARD', 'red-card', 'tarjeta roja') : '—'}</td></tr>`;
     })).join('');
-    const content = roster.length ? `<table class="acta-roster-table lineup-table"><thead><tr><th>N.º</th><th>Jugador</th><th>Gol</th><th title="Tarjeta amarilla">T.A.</th><th title="Tarjeta roja">T.R.</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty-roster"><strong>Sin jugadores registrados</strong><p>Completa el plantel para usar el acta.</p><button class="secondary-button compact-button" type="button" data-register-team="${teamId}">Registrar jugadores</button></div>`;
-    return `<section class="sheet-team"><div class="sheet-team-heading"><h3>${esc(teamName(teamId))}</h3><span>${lineupCount(teamId, 'TITULAR')}/6 · ${lineupCount(teamId, 'SUPLENTE')}/4</span></div>${content}</section>`;
+    const content = roster.length ? `<table class="acta-roster-table lineup-table"><thead><tr><th>N.º</th><th>Jugador</th><th>Gol</th><th title="Tarjeta amarilla">T.A.</th><th title="Tarjeta roja">T.R.</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty-roster"><strong>Sin jugadores registrados</strong><p>Agrega el primer jugador sin salir del acta.</p></div>`;
+    return `<section class="sheet-team"><div class="sheet-team-heading"><h3>${esc(teamName(teamId))}</h3><div class="sheet-team-tools"><span>${lineupCount(teamId, 'TITULAR')}/6 · ${lineupCount(teamId, 'SUPLENTE')}/4</span><button class="secondary-button compact-button" type="button" data-add-player="${teamId}">+ Nuevo jugador</button></div></div>${content}</section>`;
   }).join('');
+}
+
+function openQuickPlayer(teamId) {
+  quickPlayerForm.reset();
+  quickPlayerForm.elements.teamId.value = teamId;
+  document.querySelector('#quick-player-team').textContent = `Se agregará al plantel de ${teamName(teamId)}.`;
+  document.querySelector('#quick-player-status').textContent = '';
+  quickPlayerModal.showModal();
+  setTimeout(() => quickPlayerForm.elements.fullName.focus(), 0);
+}
+
+function closeQuickPlayer() {
+  if (!quickPlayerForm.querySelector('button[type="submit"]').disabled) quickPlayerModal.close();
 }
 
 function openSheet(match) {
@@ -170,6 +272,7 @@ async function load() {
     const data = response.data || {};
     const championship = (data.championships || []).find(item => item.id === championshipId);
     const discipline = (data.disciplines || []).find(item => item.id === disciplineId);
+    currentDiscipline = discipline || null;
     teams = data.teams || [];
     matches = data.matches || [];
     players = data.players || [];
@@ -192,6 +295,22 @@ async function load() {
 }
 
 matchList.addEventListener('click', event => {
+  const volleyButton = event.target.closest('[data-save-volley-winner]');
+  if (volleyButton) {
+    const card = volleyButton.closest('[data-match-id]');
+    const winnerSelect = card?.querySelector('[data-volley-winner]');
+    if (!winnerSelect?.value) {
+      const status = card?.querySelector('.volley-winner-status');
+      if (status) {
+        status.textContent = 'Selecciona el ganador antes de guardar.';
+        status.className = 'volley-winner-status error-message';
+      }
+      return;
+    }
+    saveVolleyWinner(volleyButton.dataset.saveVolleyWinner, winnerSelect.value, volleyButton);
+    return;
+  }
+  if (isVolley()) return;
   const card = event.target.closest('[data-match-id]');
   if (card) openSheet(matches.find(match => match.id === card.dataset.matchId));
 });
@@ -208,6 +327,11 @@ document.querySelector('#match-rosters').addEventListener('change', event => {
   renderRosters();
 });
 document.querySelector('#match-rosters').addEventListener('click', async event => {
+  const addPlayerButton = event.target.closest('[data-add-player]');
+  if (addPlayerButton) {
+    openQuickPlayer(addPlayerButton.dataset.addPlayer);
+    return;
+  }
   const registerButton = event.target.closest('[data-register-team]');
   if (registerButton) {
     localStorage.setItem('ligaControlTeamId', registerButton.dataset.registerTeam);
@@ -259,6 +383,45 @@ document.querySelector('#match-rosters').addEventListener('click', async event =
     button.disabled = false;
   }
 });
+quickPlayerForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = quickPlayerForm.querySelector('button[type="submit"]');
+  const status = document.querySelector('#quick-player-status');
+  const values = Object.fromEntries(new FormData(quickPlayerForm));
+  const duplicatePlayer = duplicatePlayerByDni(values.dni);
+  if (duplicatePlayer) {
+    status.textContent = duplicatePlayerMessage(duplicatePlayer, values.teamId);
+    status.className = 'form-status error-message';
+    return;
+  }
+  button.disabled = true;
+  status.textContent = 'Registrando jugador...';
+  status.className = 'form-status';
+  try {
+    const response = await apiPost('/api/players', {
+      teamId: values.teamId,
+      dni: values.dni,
+      fullName: values.fullName,
+      shirtNumber: values.shirtNumber,
+      position: values.position,
+      birthDate: values.birthDate
+    });
+    players.push(response.data);
+    quickPlayerModal.close();
+    renderRosters();
+    updateWalkoverScorer();
+    document.querySelector('#lineup-status').textContent = `${response.data.fullName} fue agregado a ${teamName(values.teamId)}. Ya puedes seleccionarlo.`;
+    document.querySelector('#lineup-status').className = 'form-status success-message';
+  } catch (error) {
+    status.textContent = error.message;
+    status.className = 'form-status error-message';
+  } finally {
+    button.disabled = false;
+  }
+});
+document.querySelector('#close-quick-player').addEventListener('click', closeQuickPlayer);
+document.querySelector('#cancel-quick-player').addEventListener('click', closeQuickPlayer);
+quickPlayerModal.addEventListener('click', event => { if (event.target === quickPlayerModal) closeQuickPlayer(); });
 notesForm.addEventListener('submit', event => event.preventDefault());
 scoreForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -333,6 +496,25 @@ document.querySelector('#lock-result-round').addEventListener('click', async eve
     await load();
   } catch (error) {
     document.querySelector('#round-lock-status').textContent = error.message;
+    button.disabled = false;
+  }
+});
+document.querySelector('#unlock-result-round').addEventListener('click', async event => {
+  const round = Number(roundSelect.value);
+  const roundMatches = matches.filter(match => match.round === round);
+  if (!roundMatches.length) return;
+  if (!confirm(`¿Reabrir la Fecha ${round} para corregir el acta? Después de corregir debes volver a cerrar la fecha.`)) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  document.querySelector('#round-lock-status').textContent = 'Reabriendo fecha para corrección...';
+  try {
+    await apiPut('/api/matches', { id: roundMatches[0].id, unlockRound: true });
+    await load();
+    document.querySelector('#round-lock-status').textContent = `Fecha ${round} reabierta. Corrige el acta y vuelve a cerrar la fecha.`;
+    document.querySelector('#round-lock-status').className = 'form-status success-message';
+  } catch (error) {
+    document.querySelector('#round-lock-status').textContent = error.message;
+    document.querySelector('#round-lock-status').className = 'form-status error-message';
     button.disabled = false;
   }
 });

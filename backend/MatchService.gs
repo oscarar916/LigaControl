@@ -22,6 +22,7 @@ var MatchService = {
     var current = listSheetRecords(SHEETS.MATCHES).find(function (item) { return String(item.id) === String(body.id); });
     if (!current) throw appError('NOT_FOUND', 'El partido no existe.', 404);
     if (body.lockRound) return lockMatchRound(current);
+    if (body.unlockRound) return unlockMatchRound(current);
     if (isMatchLocked(current)) throw appError('CONFLICT', 'La fecha está cerrada y sus partidos ya no se pueden editar.', 409);
     if (body.walkoverTeamId) {
       if ([String(current.local_id), String(current.visitante_id)].indexOf(String(body.walkoverTeamId)) === -1) throw appError('VALIDATION_ERROR', 'El equipo ausente no pertenece a este partido.', 400);
@@ -136,6 +137,21 @@ function lockMatchRound(current) {
     return updateSheetRecord(SHEETS.MATCHES, item.id, { cerrado: true, estado: 'FINISHED', ganador_id: homeScore === awayScore ? '' : homeScore > awayScore ? item.local_id : item.visitante_id, observaciones: JSON.stringify(metadata), updated_at: timestamp });
   });
   return { items: updated.map(toMatchResponse), total: updated.length, round: Number(current.jornada), locked: true };
+}
+
+function unlockMatchRound(current) {
+  var roundMatches = listSheetRecords(SHEETS.MATCHES).filter(function (item) {
+    return String(item.campeonato_id) === String(current.campeonato_id) && String(item.disciplina_id) === String(current.disciplina_id) && Number(item.jornada) === Number(current.jornada) && String(item.estado) !== 'INACTIVE';
+  });
+  var timestamp = nowIso();
+  var updated = roundMatches.map(function (item) {
+    var metadata = {};
+    try { metadata = JSON.parse(item.observaciones || '{}'); } catch (error) { metadata = {}; }
+    metadata.roundLocked = false;
+    metadata.roundUnlockedAt = timestamp;
+    return updateSheetRecord(SHEETS.MATCHES, item.id, { cerrado: false, estado: 'SCHEDULED', ganador_id: '', observaciones: JSON.stringify(metadata), updated_at: timestamp });
+  });
+  return { items: updated.map(toMatchResponse), total: updated.length, round: Number(current.jornada), locked: false };
 }
 
 function formatMatchDate(value) {

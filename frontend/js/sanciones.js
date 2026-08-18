@@ -38,6 +38,18 @@ function renderSummary() {
 }
 
 function sanctionLabel(type) { return type === 'YELLOW_CARD' ? '🟨 Amarilla' : type === 'RED_CARD' ? '🟥 Roja directa' : '⛔ Expulsión'; }
+function suspensionText(sanction) {
+  const matches = Number(sanction.suspensionMatches || 0);
+  if (!matches) return 'Sin suspensión';
+  const reason = sanction.reason && sanction.reason !== 'Tarjeta amarilla'
+    ? sanction.reason
+    : sanction.type === 'YELLOW_CARD'
+      ? 'Acumulación de tarjetas amarillas'
+      : sanction.type === 'RED_CARD'
+        ? 'Tarjeta roja directa'
+        : 'Expulsión';
+  return `<strong>${matches} fecha${matches === 1 ? '' : 's'}</strong><small>${esc(reason)}</small>`;
+}
 
 function renderGroups() {
   const filtered = filteredSanctions();
@@ -46,7 +58,7 @@ function renderGroups() {
     const pendingTotal = items.reduce((sum, item) => { const payment = paymentFor(item.id); return sum + (payment?.status === 'PENDING' ? Number(payment.amount || 0) : 0); }, 0);
     return `<article class="sanction-management-card"><header><div><small>Equipo</small><h3>${esc(team.name)}</h3></div><div><span>${items.length} sanción(es)</span><strong>S/ ${pendingTotal.toFixed(2)} pendiente</strong></div></header><div class="table-wrap"><table><thead><tr><th>Jugador</th><th>Fecha</th><th>Tarjeta</th><th>Suspensión</th><th>Monto</th><th>Pago</th><th></th></tr></thead><tbody>${items.map((item) => {
       const payment = paymentFor(item.id); const paid = payment?.status === 'PAID'; const round = roundForSanction(item);
-      return `<tr><td><strong>${esc(playerName(item.playerId))}</strong></td><td>${round ? `Fecha ${round}` : 'Sin fecha'}</td><td>${sanctionLabel(item.type)}</td><td>${item.suspensionMatches ? `${item.suspensionMatches} fecha(s)` : 'Sin suspensión'}</td><td><strong>S/ ${Number(item.amount || 0).toFixed(2)}</strong></td><td><span class="badge ${paid ? 'paid-badge' : 'pending-badge'}">${paid ? 'Pagado' : 'Pendiente'}</span></td><td>${payment && !paid ? `<button class="secondary-button compact-button" type="button" data-mark-paid="${payment.id}">Marcar pagado</button>` : paid ? `<small>${esc(payment.date || '')}</small>` : ''}</td></tr>`;
+      return `<tr><td><strong>${esc(playerName(item.playerId))}</strong></td><td>${round ? `Fecha ${round}` : 'Sin fecha'}</td><td>${sanctionLabel(item.type)}</td><td class="suspension-cell">${suspensionText(item)}</td><td><strong>S/ ${Number(item.amount || 0).toFixed(2)}</strong></td><td><span class="badge ${paid ? 'paid-badge' : 'pending-badge'}">${paid ? 'Pagado' : 'Pendiente'}</span></td><td>${payment && !paid ? `<button class="secondary-button compact-button" type="button" data-mark-paid="${payment.id}">Marcar pagado</button>` : paid ? `<small>${esc(payment.date || '')}</small>` : ''}</td></tr>`;
     }).join('')}</tbody></table></div></article>`;
   }).join('') : '<div class="empty-state compact"><strong>No hay sanciones con estos filtros</strong><p>Prueba seleccionando otro equipo, fecha o estado de pago.</p></div>';
 }
