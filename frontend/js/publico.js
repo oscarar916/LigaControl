@@ -5,7 +5,7 @@ let championshipId = params.get('championshipId') || localStorage.getItem('ligaC
 let disciplineId = params.get('disciplineId') || localStorage.getItem('ligaControlDisciplineId') || '';
 const content = document.querySelector('#public-content');
 const message = document.querySelector('#public-message');
-const PUBLIC_SITE_BASE_URL = 'https://oscarar916.github.io/LigaControl/frontend/publico.html';
+const PUBLIC_SITE_BASE_URL = 'https://oscarar916.github.io/LigaControl/publico.html';
 let championship; let discipline; let teams = []; let players = []; let matches = []; let events = []; let sanctions = []; let payments = []; let activeView = 'schedule';
 
 const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
