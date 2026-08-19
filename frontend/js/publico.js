@@ -1,10 +1,14 @@
 ﻿import { apiGet } from './api.js';
 
 const params = new URLSearchParams(location.search);
-let championshipId = params.get('championshipId') || localStorage.getItem('ligaControlChampionshipId') || '';
-let disciplineId = params.get('disciplineId') || localStorage.getItem('ligaControlDisciplineId') || '';
+const publicHomeRequested = params.get('home') === '1' || (!params.has('championshipId') && !params.has('disciplineId'));
+let championshipId = publicHomeRequested ? '' : (params.get('championshipId') || localStorage.getItem('ligaControlChampionshipId') || '');
+let disciplineId = publicHomeRequested ? '' : (params.get('disciplineId') || localStorage.getItem('ligaControlDisciplineId') || '');
 const content = document.querySelector('#public-content');
 const message = document.querySelector('#public-message');
+const tabs = document.querySelector('.public-tabs');
+const summary = document.querySelector('#public-summary');
+const shareButton = document.querySelector('#share-public-page');
 const PUBLIC_SITE_BASE_URL = 'https://oscarar916.github.io/LigaControl/publico.html';
 let championship; let discipline; let teams = []; let players = []; let matches = []; let events = []; let sanctions = []; let payments = []; let activeView = 'schedule';
 
@@ -65,7 +69,7 @@ function scorers() {
 
 function renderSummary() {
   const completed = matches.filter(played).length;
-  document.querySelector('#public-summary').innerHTML = `<article><span>Equipos</span><strong>${teams.length}</strong></article><article><span>Partidos jugados</span><strong>${completed}/${matches.length}</strong></article><article><span>Próxima fecha</span><strong>${roundsWith(matches.filter((match) => !played(match)))[0]?.round || '—'}</strong></article>`;
+  summary.innerHTML = `<article><span>Equipos</span><strong>${teams.length}</strong></article><article><span>Partidos jugados</span><strong>${completed}/${matches.length}</strong></article><article><span>Próxima fecha</span><strong>${roundsWith(matches.filter((match) => !played(match)))[0]?.round || '—'}</strong></article>`;
 }
 
 function renderSchedule() {
@@ -97,11 +101,53 @@ function renderSanctions() {
 
 const renderers = { schedule: renderSchedule, standings: renderStandings, scorers: renderScorers, sanctions: renderSanctions };
 function render() { document.querySelectorAll('[data-public-view]').forEach((button) => button.classList.toggle('active', button.dataset.publicView === activeView)); renderers[activeView](); }
+function setPublicChrome({ isHome = false } = {}) {
+  tabs.hidden = isHome;
+  summary.hidden = isHome;
+  shareButton.hidden = isHome;
+  message.textContent = '';
+  message.className = 'form-status';
+}
+function publicPageUrlFor(championshipIdValue, disciplineIdValue) {
+  const base = new URL(location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? 'publico.html' : PUBLIC_SITE_BASE_URL, location.href);
+  base.searchParams.set('championshipId', championshipIdValue);
+  base.searchParams.set('disciplineId', disciplineIdValue);
+  return base.toString();
+}
 function publicShareUrl() {
   const publicUrl = new URL(location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? PUBLIC_SITE_BASE_URL : location.href);
   publicUrl.searchParams.set('championshipId', championshipId);
   publicUrl.searchParams.set('disciplineId', disciplineId);
   return publicUrl.toString();
+}
+
+function renderPublicHome(championships, disciplines, allTeams) {
+  const activeChampionships = championships.filter((item) => item.status !== 'INACTIVE');
+  const activeDisciplines = disciplines.filter((item) => item.status !== 'INACTIVE');
+  const teamCountByDiscipline = allTeams.reduce((acc, team) => {
+    if (team.status !== 'INACTIVE') acc.set(team.disciplineId, (acc.get(team.disciplineId) || 0) + 1);
+    return acc;
+  }, new Map());
+  document.title = 'Campeonatos disponibles | LigaControl';
+  document.querySelector('#public-organizer').textContent = 'LigaControl';
+  document.querySelector('#public-championship').textContent = 'Campeonatos disponibles';
+  document.querySelector('#public-discipline').textContent = 'Elige un campeonato y deporte para ver partidos, tabla, goleadores y sanciones.';
+  document.querySelector('#public-status').textContent = `${activeChampionships.length} disponible${activeChampionships.length === 1 ? '' : 's'}`;
+  setPublicChrome({ isHome: true });
+  content.innerHTML = `<div class="public-section-heading"><div><small>Inicio público</small><h2>Selecciona dónde quieres entrar</h2><p>Estos son los campeonatos y deportes habilitados para consulta pública.</p></div></div>${activeChampionships.length ? `<div class="public-home-grid">${activeChampionships.map((item) => {
+    const sports = activeDisciplines.filter((sport) => sport.championshipId === item.id);
+    const displayName = item.year && !String(item.name || '').includes(String(item.year)) ? `${item.name} ${item.year}` : item.name;
+    return `<article class="public-home-card"><header><div><span>${esc(item.organizer || 'Organización')}</span><h3>${esc(displayName || 'Campeonato')}</h3></div><strong>${esc(item.status || 'Disponible')}</strong></header>${sports.length ? `<div class="public-discipline-list">${sports.map((sport) => `<a class="public-discipline-link" href="${esc(publicPageUrlFor(item.id, sport.id))}"><span>${esc(sport.name || 'Deporte')}</span><small>${teamCountByDiscipline.get(sport.id) || 0} equipos</small><b>Entrar →</b></a>`).join('')}</div>` : '<p class="muted">Este campeonato aún no tiene deportes publicados.</p>'}</article>`;
+  }).join('')}</div>` : '<div class="empty-state"><strong>No hay campeonatos disponibles</strong><p>Cuando se publique un campeonato aparecerá aquí.</p></div>'}`;
+}
+
+async function loadPublicHome() {
+  const [championshipResponse, disciplineResponse, teamResponse] = await Promise.all([
+    apiGet('/api/championships'),
+    apiGet('/api/disciplines'),
+    apiGet('/api/teams')
+  ]);
+  renderPublicHome(championshipResponse.data?.items || [], disciplineResponse.data?.items || [], teamResponse.data?.items || []);
 }
 
 async function resolvePublicContext() {
@@ -122,13 +168,18 @@ async function resolvePublicContext() {
 
 async function load() {
   try {
+    if (publicHomeRequested) {
+      await loadPublicHome();
+      return;
+    }
+    setPublicChrome({ isHome: false });
     await resolvePublicContext();
     if (!championshipId || !disciplineId) throw new Error('Este enlace no identifica un campeonato y deporte válidos.');
     const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId }); const data = response.data || {};
     championship = (data.championships || []).find((item) => item.id === championshipId); discipline = (data.disciplines || []).find((item) => item.id === disciplineId); teams = data.teams || []; players = data.players || []; matches = data.matches || []; events = data.events || [];
     const playerIds = new Set(players.map((player) => player.id)); const officialMatchIds = new Set(matches.filter(played).map((match) => match.id)); const officialEventIds = new Set(events.filter((event) => officialMatchIds.has(event.matchId)).map((event) => event.id)); sanctions = (data.sanctions || []).filter((sanction) => playerIds.has(sanction.playerId) && officialEventIds.has(sanction.eventId)); const sanctionIds = new Set(sanctions.map((sanction) => sanction.id)); payments = (data.payments || []).filter((payment) => sanctionIds.has(payment.sanctionId));
     document.title = `${championshipDisplayName()} | LigaControl`; document.querySelector('#public-organizer').textContent = championship?.organizer || 'Información oficial'; document.querySelector('#public-championship').textContent = championshipDisplayName(); document.querySelector('#public-discipline').textContent = discipline?.name || 'Deporte'; document.querySelector('#public-status').textContent = championship?.status || 'Información oficial';
-    if (!params.get('championshipId')) history.replaceState(null, '', `?championshipId=${encodeURIComponent(championshipId)}&disciplineId=${encodeURIComponent(disciplineId)}`);
+    if (!params.get('championshipId')) history.replaceState(null, '', `publico.html?championshipId=${encodeURIComponent(championshipId)}&disciplineId=${encodeURIComponent(disciplineId)}`);
     renderSummary(); render();
   } catch (error) { content.innerHTML = `<div class="empty-state"><strong>No se pudo abrir la vista pública</strong><p>${esc(error.message)}</p></div>`; document.querySelector('#public-status').textContent = 'No disponible'; }
 }
