@@ -107,9 +107,8 @@ function renderCards() {
   if (!cards.length) return '<div class="empty-state compact">Todavía no hay tarjetas registradas.</div>';
   const groups = teams.map((team) => {
     const detailed = cards.filter((item) => item.teamId === team.id).map((item) => {
-      const playerSanctions = sanctions.filter((sanction) => sanction.playerId === item.playerId);
       const pendingSanctions = pendingSanctionsForPlayer(item.playerId);
-      return { ...item, amount: pendingSanctions.reduce((sum, sanction) => sum + pendingAmountForSanction(sanction), 0), pendingSanctions, suspension: playerSanctions.reduce((sum, sanction) => sum + Number(sanction.suspensionMatches || 0), 0), suspensionText: suspensionTextForSanctions(playerSanctions) };
+      return { ...item, amount: pendingSanctions.reduce((sum, sanction) => sum + pendingAmountForSanction(sanction), 0), pendingSanctions, suspension: pendingSanctions.reduce((sum, sanction) => sum + Number(sanction.suspensionMatches || 0), 0), suspensionText: suspensionTextForSanctions(pendingSanctions) };
     }).filter((item) => item.amount > 0);
     return { team, items: detailed };
   }).filter((group) => group.items.length);
