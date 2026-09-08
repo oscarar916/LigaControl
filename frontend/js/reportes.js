@@ -50,6 +50,15 @@ function suspensionTextForSanctions(items) {
   return `<strong>${total} fecha${total === 1 ? '' : 's'}</strong><small>${esc(reasons.join(' · '))}</small>`;
 }
 
+function currentYellowStreak(playerId) {
+  const currentRound = activeMatches().filter((match) => !match.automaticWalkover).reduce((latest, match) => Math.max(latest, Number(match.round || 0)), 0);
+  const rounds = [...new Set(events.filter((event) => event.playerId === playerId && event.type === 'YELLOW_CARD' && event.status !== 'INACTIVE').map((event) => Number(matches.find((match) => match.id === event.matchId)?.round || 0)).filter(Boolean))].sort((a, b) => a - b);
+  if (!currentRound || rounds.at(-1) !== currentRound) return 0;
+  let streak = 1;
+  for (let index = rounds.length - 1; index > 0 && rounds[index - 1] === rounds[index] - 1; index -= 1) streak += 1;
+  return streak;
+}
+
 function standings() {
   const table = Object.fromEntries(teams.map((team) => [team.id, { team, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, pts: 0 }]));
   standingsMatches().forEach((match) => {
@@ -118,9 +127,10 @@ function renderCards() {
     const showRed = totals.red > 0;
     const rows = items.map((item) => {
       const paymentCell = pendingPaymentDetail(item.pendingSanctions);
-      return `<tr><td>${esc(playerName(item.playerId))}</td><td><span class="yellow-total" title="Total de amarillas acumuladas en el campeonato">${item.yellow}</span></td>${showRed ? `<td>${item.red ? `<span class="red-total">${item.red}</span>` : '—'}</td>` : ''}<td class="suspension-cell">${item.suspensionText}</td><td>${paymentCell}</td></tr>`;
+      const yellowStreak = currentYellowStreak(item.playerId);
+      return `<tr><td>${esc(playerName(item.playerId))}</td><td><div class="yellow-streak-detail"><span class="yellow-total" title="Racha actual de amarillas consecutivas">${yellowStreak}</span><small>${item.yellow} en total</small></div></td>${showRed ? `<td>${item.red ? `<span class="red-total">${item.red}</span>` : '—'}</td>` : ''}<td class="suspension-cell">${item.suspensionText}</td><td>${paymentCell}</td></tr>`;
     });
-    return `<section class="sanction-team-card${showRed ? ' has-red-column' : ''}"><header><div><small>Equipo</small><h3>${esc(team.name)}</h3></div><div class="sanction-team-summary"><span title="Total de amarillas acumuladas por el equipo">🟨 <strong>${totals.yellow}</strong></span>${showRed ? `<span>🟥 <strong>${totals.red}</strong></span>` : ''}<span class="sanction-team-amount">Pendiente: <strong>S/ ${totals.amount.toFixed(2)}</strong></span></div></header>${table(['Jugador', 'Amarillas acumuladas', ...(showRed ? ['Rojas'] : []), 'Suspensión', 'Pago pendiente'], rows, '')}</section>`;
+    return `<section class="sanction-team-card${showRed ? ' has-red-column' : ''}"><header><div><small>Equipo</small><h3>${esc(team.name)}</h3></div><div class="sanction-team-summary"><span title="Total de amarillas acumuladas por el equipo">🟨 <strong>${totals.yellow}</strong></span>${showRed ? `<span>🟥 <strong>${totals.red}</strong></span>` : ''}<span class="sanction-team-amount">Pendiente: <strong>S/ ${totals.amount.toFixed(2)}</strong></span></div></header>${table(['Jugador', 'Racha consecutiva', ...(showRed ? ['Rojas'] : []), 'Suspensión', 'Pago pendiente'], rows, '')}</section>`;
   }).join('')}</div>`;
 }
 
