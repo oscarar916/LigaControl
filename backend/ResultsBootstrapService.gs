@@ -13,7 +13,8 @@ var ResultsBootstrapService = {
     var matchIds = matches.map(function (item) { return String(item.id); });
     var players = listSheetRecords(SHEETS.PLAYERS).filter(function (item) { return teamIds.indexOf(String(item.equipo_id)) !== -1 && String(item.estado) !== 'INACTIVE'; }).map(toPlayerResponse);
     var events = listSheetRecords(SHEETS.EVENTS).filter(function (item) { return matchIds.indexOf(String(item.partido_id)) !== -1 && String(item.estado) !== 'INACTIVE'; }).map(toEventResponse);
-    var minutes = listSheetRecords(SHEETS.MINUTES).filter(function (item) { return matchIds.indexOf(String(item.partido_id)) !== -1 && String(item.estado) !== 'INACTIVE'; }).map(toMinuteResponse);
+    var publicOnly = String(params.publicOnly || '') === 'true';
+    var minutes = publicOnly ? [] : listSheetRecords(SHEETS.MINUTES).filter(function (item) { return matchIds.indexOf(String(item.partido_id)) !== -1 && String(item.estado) !== 'INACTIVE'; }).map(toMinuteResponse);
     var sanctions = listSheetRecords(SHEETS.SANCTIONS).filter(function (item) { return String(item.campeonato_id) === championshipId && String(item.estado) !== 'INACTIVE'; }).map(toSanctionResponse);
     var payments = listSheetRecords(SHEETS.PAYMENTS).filter(function (item) { return String(item.campeonato_id) === championshipId && String(item.estado) !== 'INACTIVE'; }).map(toPaymentResponse);
 

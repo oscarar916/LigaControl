@@ -22,12 +22,16 @@ function appError(code, message, status) {
   return error;
 }
 
+var databaseInstance = null;
+var sheetRecordsCache = {};
+
 function getDatabase() {
   var spreadsheetId = getSpreadsheetId();
   if (!spreadsheetId || spreadsheetId === 'REPLACE_WITH_SCRIPT_PROPERTY') {
     throw appError('CONFIGURATION_ERROR', 'Falta configurar la propiedad SPREADSHEET_ID.', 500);
   }
-  return SpreadsheetApp.openById(spreadsheetId);
+  if (!databaseInstance) databaseInstance = SpreadsheetApp.openById(spreadsheetId);
+  return databaseInstance;
 }
 
 function getDatabaseSheet(sheetName) {
@@ -43,15 +47,17 @@ function getSheetHeaders(sheet) {
 }
 
 function listSheetRecords(sheetName) {
+  if (Object.prototype.hasOwnProperty.call(sheetRecordsCache, sheetName)) return sheetRecordsCache[sheetName];
   var sheet = getDatabaseSheet(sheetName);
   var headers = getSheetHeaders(sheet);
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
-  return sheet.getRange(2, 1, lastRow - 1, headers.length).getValues().map(function (row) {
+  if (lastRow < 2) { sheetRecordsCache[sheetName] = []; return sheetRecordsCache[sheetName]; }
+  sheetRecordsCache[sheetName] = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues().map(function (row) {
     var record = {};
     headers.forEach(function (header, index) { record[header] = row[index]; });
     return record;
   }).filter(function (record) { return Boolean(record.id); });
+  return sheetRecordsCache[sheetName];
 }
 
 function appendSheetRecord(sheetName, record) {
@@ -63,6 +69,7 @@ function appendSheetRecord(sheetName, record) {
     sheet.appendRow(headers.map(function (header) {
       return record[header] === undefined || record[header] === null ? '' : record[header];
     }));
+    delete sheetRecordsCache[sheetName];
     return record;
   } finally {
     lock.releaseLock();
@@ -80,6 +87,7 @@ function appendSheetRecords(sheetName, records) {
       return headers.map(function (header) { return record[header] === undefined || record[header] === null ? '' : record[header]; });
     });
     sheet.getRange(sheet.getLastRow() + 1, 1, values.length, headers.length).setValues(values);
+    delete sheetRecordsCache[sheetName];
     return records;
   } finally { lock.releaseLock(); }
 }
@@ -101,6 +109,7 @@ function updateSheetRecord(sheetName, id, changes) {
       if (Object.prototype.hasOwnProperty.call(changes, header)) row[index] = changes[header];
     });
     sheet.getRange(offset + 2, 1, 1, headers.length).setValues([row]);
+    delete sheetRecordsCache[sheetName];
     var result = {};
     headers.forEach(function (header, index) { result[header] = row[index]; });
     return result;

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Configuración | LigaControl</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260818-5">
+  <link rel="stylesheet" href="css/styles.css?v=20260903-2">
 </head>
 <body>
   <div class="app-shell">
@@ -38,15 +38,16 @@
         <form id="sanction-settings-form" class="form-grid">
           <label class="field"><span>Costo por amarilla (S/) *</span><input name="YELLOW_CARD_COST" type="number" min="0" step="0.01" required value="10"></label>
           <label class="field"><span>Costo por roja (S/) *</span><input name="RED_CARD_COST" type="number" min="0" step="0.01" required value="20"></label>
-          <label class="field"><span>Amarillas para suspensión *</span><input name="YELLOW_CARDS_FOR_SUSPENSION" type="number" min="1" required value="2"></label>
+          <label class="field"><span>Amarillas consecutivas para suspensión *</span><input name="YELLOW_CARDS_FOR_SUSPENSION" type="number" min="1" required value="2"></label>
           <label class="field"><span>Fechas de suspensión por amarillas *</span><input name="YELLOW_SUSPENSION_MATCHES" type="number" min="0" required value="1"></label>
           <label class="field"><span>Fechas por roja directa *</span><input name="RED_SUSPENSION_MATCHES" type="number" min="0" required value="2"></label>
           <label class="field"><span>Rojas para expulsión del torneo *</span><input name="RED_CARDS_FOR_EXPULSION" type="number" min="1" required value="2"></label>
+          <label class="field"><span>W.O. para habilitar eliminación *</span><input name="WALKOVER_ELIMINATION_LIMIT" type="number" min="1" required value="2"></label>
           <div class="form-actions field-wide"><button class="action-button" type="submit">Guardar reglas</button><span id="sanction-settings-status" class="form-status" role="status"></span></div>
         </form>
       </section>
     </main>
   </div>
-  <script type="module" src="js/app.js"></script><script type="module" src="js/configuracion.js"></script>
+  <script type="module" src="js/app.js"></script><script type="module" src="js/configuracion.js?v=20260903-1"></script>
 </body>
 </html>

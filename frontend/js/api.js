@@ -6,7 +6,7 @@ async function request(method, path, body, params = {}) {
     const query = Object.entries(params).map(([key, value]) => `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('');
     const url = `${API_BASE_URL}?path=${encodeURIComponent(path)}${tunneledMethod ? `&_method=${tunneledMethod}` : ''}${query}`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
     const requestBody = method === 'GET'
       ? undefined
       : { ...(body || {}), _adminKey: localStorage.getItem('ligaControlAdminKey') || '' };
@@ -33,7 +33,7 @@ async function request(method, path, body, params = {}) {
     }
     return payload;
   } catch (error) {
-    if (error.name === 'AbortError') throw new Error('Google Apps Script tardó demasiado en responder. Presiona Actualizar e inténtalo nuevamente.');
+    if (error.name === 'AbortError') throw new Error('Google Apps Script tardó más de 60 segundos en responder. Presiona Actualizar e inténtalo nuevamente.');
     return handleApiError(error);
   }
 }

@@ -46,12 +46,16 @@ function appError(code, message, status) {
   return error;
 }
 
+var databaseInstance = null;
+var sheetRecordsCache = {};
+
 function getDatabase() {
   var spreadsheetId = getSpreadsheetId();
   if (!spreadsheetId || spreadsheetId === 'REPLACE_WITH_SCRIPT_PROPERTY') {
     throw appError('CONFIGURATION_ERROR', 'Falta configurar la propiedad SPREADSHEET_ID.', 500);
   }
-  return SpreadsheetApp.openById(spreadsheetId);
+  if (!databaseInstance) databaseInstance = SpreadsheetApp.openById(spreadsheetId);
+  return databaseInstance;
 }
 
 function getDatabaseSheet(sheetName) {
@@ -67,15 +71,17 @@ function getSheetHeaders(sheet) {
 }
 
 function listSheetRecords(sheetName) {
+  if (Object.prototype.hasOwnProperty.call(sheetRecordsCache, sheetName)) return sheetRecordsCache[sheetName];
   var sheet = getDatabaseSheet(sheetName);
   var headers = getSheetHeaders(sheet);
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
-  return sheet.getRange(2, 1, lastRow - 1, headers.length).getValues().map(function (row) {
+  if (lastRow < 2) { sheetRecordsCache[sheetName] = []; return sheetRecordsCache[sheetName]; }
+  sheetRecordsCache[sheetName] = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues().map(function (row) {
     var record = {};
     headers.forEach(function (header, index) { record[header] = row[index]; });
     return record;
   }).filter(function (record) { return Boolean(record.id); });
+  return sheetRecordsCache[sheetName];
 }
 
 function appendSheetRecord(sheetName, record) {
@@ -87,6 +93,7 @@ function appendSheetRecord(sheetName, record) {
     sheet.appendRow(headers.map(function (header) {
       return record[header] === undefined || record[header] === null ? '' : record[header];
     }));
+    delete sheetRecordsCache[sheetName];
     return record;
   } finally {
     lock.releaseLock();
@@ -104,6 +111,7 @@ function appendSheetRecords(sheetName, records) {
       return headers.map(function (header) { return record[header] === undefined || record[header] === null ? '' : record[header]; });
     });
     sheet.getRange(sheet.getLastRow() + 1, 1, values.length, headers.length).setValues(values);
+    delete sheetRecordsCache[sheetName];
     return records;
   } finally { lock.releaseLock(); }
 }
@@ -125,6 +133,7 @@ function updateSheetRecord(sheetName, id, changes) {
       if (Object.prototype.hasOwnProperty.call(changes, header)) row[index] = changes[header];
     });
     sheet.getRange(offset + 2, 1, 1, headers.length).setValues([row]);
+    delete sheetRecordsCache[sheetName];
     var result = {};
     headers.forEach(function (header, index) { result[header] = row[index]; });
     return result;
@@ -137,6 +146,7 @@ function updateSheetRecord(sheetName, id, changes) {
 var ChampionshipService = {
   get: function (context) {
     var params = context.params || {};
+    if (params.summaryId) return getChampionshipSummary(params.summaryId);
     var items = listSheetRecords(SHEETS.CHAMPIONSHIPS).filter(function (item) {
       if (params.status) return String(item.estado) === String(params.status);
       return String(item.estado) !== 'INACTIVE';
@@ -185,6 +195,16 @@ var ChampionshipService = {
     }));
   }
 };
+
+function getChampionshipSummary(championshipId) {
+  var id = sanitizeText(championshipId || '');
+  if (!validateUuid(id)) throw appError('VALIDATION_ERROR', 'El campeonato seleccionado no es válido.', 400);
+  var championshipRecord = listSheetRecords(SHEETS.CHAMPIONSHIPS).find(function (item) { return String(item.id) === id && String(item.estado) !== 'INACTIVE'; });
+  if (!championshipRecord) throw appError('NOT_FOUND', 'El campeonato seleccionado no existe.', 404);
+  var disciplines = listSheetRecords(SHEETS.DISCIPLINES).filter(function (item) { return String(item.campeonato_id) === id && String(item.estado) !== 'INACTIVE'; }).map(toDisciplineResponse);
+  var teams = listSheetRecords(SHEETS.TEAMS).filter(function (item) { return String(item.campeonato_id) === id && String(item.estado) !== 'INACTIVE'; }).map(toTeamResponse);
+  return { championship: toChampionshipResponse(championshipRecord), disciplines: disciplines, teams: teams };
+}
 
 function normalizeChampionshipInput(body, partial) {
   function value(apiName, sheetName) {
@@ -333,7 +353,7 @@ function toDisciplineResponse(record) {
 }
 
 // ===== ConfigurationService.gs =====
-var SANCTION_DEFAULTS = { YELLOW_CARD_COST: 10, RED_CARD_COST: 20, YELLOW_CARDS_FOR_SUSPENSION: 2, YELLOW_SUSPENSION_MATCHES: 1, RED_SUSPENSION_MATCHES: 2, RED_CARDS_FOR_EXPULSION: 2 };
+var SANCTION_DEFAULTS = { YELLOW_CARD_COST: 10, RED_CARD_COST: 20, YELLOW_CARDS_FOR_SUSPENSION: 2, YELLOW_SUSPENSION_MATCHES: 1, RED_SUSPENSION_MATCHES: 2, RED_CARDS_FOR_EXPULSION: 2, WALKOVER_ELIMINATION_LIMIT: 2 };
 var ConfigurationService = {
   get: function (context) {
     var params = context.params || {}, items = listSheetRecords(SHEETS.CONFIGURATION).filter(function (item) { return (!params.championshipId || String(item.campeonato_id) === String(params.championshipId)) && (!params.disciplineId || !item.disciplina_id || String(item.disciplina_id) === String(params.disciplineId)) && String(item.estado) !== 'INACTIVE'; }), settings = {};
@@ -355,7 +375,7 @@ var ConfigurationService = {
     return ConfigurationService.get({ params: { championshipId: championshipId, disciplineId: disciplineId } });
   }
 };
-function sanctionSettingDescription(key) { return ({ YELLOW_CARD_COST: 'Costo por tarjeta amarilla', RED_CARD_COST: 'Costo por tarjeta roja', YELLOW_CARDS_FOR_SUSPENSION: 'Amarillas acumuladas para suspensión', YELLOW_SUSPENSION_MATCHES: 'Fechas de suspensión por amarillas', RED_SUSPENSION_MATCHES: 'Fechas de suspensión por roja directa', RED_CARDS_FOR_EXPULSION: 'Rojas acumuladas para expulsión' })[key] || key; }
+function sanctionSettingDescription(key) { return ({ YELLOW_CARD_COST: 'Costo por tarjeta amarilla', RED_CARD_COST: 'Costo por tarjeta roja', YELLOW_CARDS_FOR_SUSPENSION: 'Amarillas consecutivas para suspensión', YELLOW_SUSPENSION_MATCHES: 'Fechas de suspensión por amarillas', RED_SUSPENSION_MATCHES: 'Fechas de suspensión por roja directa', RED_CARDS_FOR_EXPULSION: 'Rojas acumuladas para expulsión', WALKOVER_ELIMINATION_LIMIT: 'Walkovers perdidos para habilitar la eliminación' })[key] || key; }
 function getSanctionSettings(championshipId, disciplineId) { return ConfigurationService.get({ params: { championshipId: championshipId, disciplineId: disciplineId } }).settings; }
 
 // ===== TeamService.gs =====
@@ -395,6 +415,11 @@ var TeamService = {
   put: function (context) {
     var body = context.body || {};
     if (!body.id || !validateUuid(body.id)) throw appError('VALIDATION_ERROR', 'El id del equipo no es válido.', 400);
+    if (body.eliminateForWalkovers) {
+      var team = listSheetRecords(SHEETS.TEAMS).find(function (item) { return String(item.id) === String(body.id) && String(item.estado) !== 'INACTIVE'; });
+      if (!team) throw appError('NOT_FOUND', 'El equipo no existe.', 404);
+      return reconcileWalkoverEliminations(team.campeonato_id, team.disciplina_id, team.id);
+    }
     var input = normalizeTeamInput(body, true);
     var changes = { updated_at: nowIso() };
     Object.keys(input).forEach(function (key) { if (input[key] !== undefined) changes[key] = input[key]; });
@@ -564,6 +589,10 @@ var MatchService = {
 
   post: function (context) {
     var body = context.body || {};
+    if (body.reconcileWalkovers) {
+      if (!validateUuid(body.championshipId) || !validateUuid(body.disciplineId)) throw appError('VALIDATION_ERROR', 'Campeonato o disciplina inválidos.', 400);
+      return reconcileWalkoverEliminations(body.championshipId, body.disciplineId);
+    }
     if (Array.isArray(body.matches)) return createFixture(body);
     return createSingleMatch(body);
   },
@@ -607,7 +636,11 @@ var MatchService = {
       else delete metadata.walkover;
     }
     if (body.order !== undefined || body.orderConfirmed !== undefined || body.walkoverTeamId !== undefined) changes.observaciones = JSON.stringify(metadata);
-    return toMatchResponse(updateSheetRecord(SHEETS.MATCHES, body.id, changes));
+    var updatedMatch = updateSheetRecord(SHEETS.MATCHES, body.id, changes);
+    var elimination = body.walkoverTeamId !== undefined ? reconcileWalkoverEliminations(current.campeonato_id, current.disciplina_id) : null;
+    var response = toMatchResponse(updatedMatch);
+    if (elimination) response.walkoverElimination = elimination;
+    return response;
   },
 
   delete: function (context) {
@@ -664,7 +697,7 @@ function toMatchResponse(record) {
     homeId: record.local_id, awayId: record.visitante_id,
     homeScore: record.marcador_local === '' ? '' : Number(record.marcador_local), awayScore: record.marcador_visitante === '' ? '' : Number(record.marcador_visitante),
     winnerId: record.ganador_id || '', closed: record.cerrado === true || String(record.cerrado).toLowerCase() === 'true',
-    status: record.estado, isWalkover: Boolean(metadata.walkover), walkoverTeamId: metadata.walkover && metadata.walkover.absentTeamId || '', createdAt: record.created_at, updatedAt: record.updated_at
+    status: record.estado, isWalkover: Boolean(metadata.walkover), automaticWalkover: Boolean(metadata.walkover && metadata.walkover.eliminationAward), walkoverEliminationLimit: Number(metadata.walkover && metadata.walkover.eliminationLimit || 0), walkoverTeamId: metadata.walkover && metadata.walkover.absentTeamId || '', createdAt: record.created_at, updatedAt: record.updated_at
   };
 }
 
@@ -672,6 +705,101 @@ function isMatchLocked(record) {
   var metadata = {};
   try { metadata = JSON.parse(record.observaciones || '{}'); } catch (error) { metadata = {}; }
   return Boolean(metadata.roundLocked);
+}
+
+function matchMetadata(record) {
+  try { return JSON.parse(record.observaciones || '{}'); } catch (error) { return {}; }
+}
+
+function reconcileWalkoverEliminations(championshipId, disciplineId, confirmTeamId) {
+  var timestamp = nowIso();
+  var settings = getSanctionSettings(championshipId, disciplineId);
+  var limit = Math.max(1, Number(settings.WALKOVER_ELIMINATION_LIMIT || 2));
+  var matches = listSheetRecords(SHEETS.MATCHES).filter(function (item) {
+    return String(item.campeonato_id) === String(championshipId) && String(item.disciplina_id) === String(disciplineId) && String(item.estado) !== 'INACTIVE';
+  });
+  var losses = {};
+  matches.forEach(function (item) {
+    var metadata = matchMetadata(item);
+    if (!metadata.walkover || metadata.walkover.eliminationAward || !metadata.walkover.absentTeamId) return;
+    var teamId = String(metadata.walkover.absentTeamId);
+    losses[teamId] = losses[teamId] || [];
+    losses[teamId].push(Number(item.jornada));
+  });
+  var teams = listSheetRecords(SHEETS.TEAMS).filter(function (item) {
+    return String(item.campeonato_id) === String(championshipId) && String(item.disciplina_id) === String(disciplineId) && String(item.estado) !== 'INACTIVE';
+  });
+  var candidates = Object.keys(losses).filter(function (teamId) { return losses[teamId].length >= limit; });
+  if (confirmTeamId) {
+    var confirmedId = String(confirmTeamId);
+    if (candidates.indexOf(confirmedId) === -1) throw appError('VALIDATION_ERROR', 'El equipo todavía no alcanza el límite de walkovers.', 400);
+    var confirmedTeam = teams.find(function (team) { return String(team.id) === confirmedId; });
+    if (!confirmedTeam) throw appError('NOT_FOUND', 'El equipo no existe.', 404);
+    if (String(confirmedTeam.estado) !== 'ELIMINATED') updateSheetRecord(SHEETS.TEAMS, confirmedId, { estado: 'ELIMINATED', updated_at: timestamp });
+    confirmedTeam.estado = 'ELIMINATED';
+  }
+  var eliminated = {};
+  teams.filter(function (team) { return String(team.estado) === 'ELIMINATED'; }).forEach(function (team) {
+    var rounds = (losses[String(team.id)] || []).sort(function (a, b) { return a - b; });
+    if (rounds.length >= limit) eliminated[String(team.id)] = rounds[limit - 1];
+  });
+  matches.forEach(function (item) {
+    var metadata = matchMetadata(item);
+    var autoAward = metadata.walkover && metadata.walkover.eliminationAward;
+    var homeEliminationRound = eliminated[String(item.local_id)];
+    var awayEliminationRound = eliminated[String(item.visitante_id)];
+    var absentTeamId = homeEliminationRound !== undefined && Number(item.jornada) > homeEliminationRound && awayEliminationRound === undefined
+      ? String(item.local_id)
+      : awayEliminationRound !== undefined && Number(item.jornada) > awayEliminationRound && homeEliminationRound === undefined
+        ? String(item.visitante_id)
+        : '';
+    if (absentTeamId && (!metadata.walkover || autoAward)) {
+      metadata.walkover = { absentTeamId: absentTeamId, score: '3-0', registeredAt: timestamp, eliminationAward: true, eliminationLimit: limit };
+      var homeScore = absentTeamId === String(item.local_id) ? 0 : 3;
+      var awayScore = absentTeamId === String(item.visitante_id) ? 0 : 3;
+      updateSheetRecord(SHEETS.MATCHES, item.id, { marcador_local: homeScore, marcador_visitante: awayScore, ganador_id: homeScore > awayScore ? item.local_id : item.visitante_id, cerrado: true, estado: 'FINISHED', observaciones: JSON.stringify(metadata), updated_at: timestamp });
+    } else if (!absentTeamId && autoAward) {
+      delete metadata.walkover;
+      updateSheetRecord(SHEETS.MATCHES, item.id, { marcador_local: '', marcador_visitante: '', ganador_id: '', cerrado: false, estado: 'SCHEDULED', observaciones: JSON.stringify(metadata), updated_at: timestamp });
+    }
+  });
+  compactEliminatedMatchSchedules(championshipId, disciplineId);
+  return { eliminatedTeamIds: Object.keys(eliminated), candidateTeamIds: candidates, threshold: limit, automaticScore: '3-0' };
+}
+
+function compactEliminatedMatchSchedules(championshipId, disciplineId) {
+  var discipline = listSheetRecords(SHEETS.DISCIPLINES).find(function (item) { return String(item.id) === String(disciplineId); });
+  var volleyball = /v[oó]ley|volley/i.test(String(discipline && discipline.nombre || ''));
+  var interval = volleyball ? 60 : 40;
+  var items = listSheetRecords(SHEETS.MATCHES).filter(function (item) { return String(item.campeonato_id) === String(championshipId) && String(item.disciplina_id) === String(disciplineId) && String(item.estado) !== 'INACTIVE'; });
+  var rounds = {};
+  items.forEach(function (item) { (rounds[item.jornada] = rounds[item.jornada] || []).push(item); });
+  Object.keys(rounds).forEach(function (round) {
+    var roundMatches = rounds[round].sort(function (a, b) { return Number(matchMetadata(a).order || 1) - Number(matchMetadata(b).order || 1); });
+    if (!roundMatches.some(function (item) { var metadata = matchMetadata(item); return metadata.walkover && metadata.walkover.eliminationAward; })) return;
+    roundMatches = roundMatches.sort(function (a, b) {
+      var aAutomatic = Boolean(matchMetadata(a).walkover && matchMetadata(a).walkover.eliminationAward);
+      var bAutomatic = Boolean(matchMetadata(b).walkover && matchMetadata(b).walkover.eliminationAward);
+      return Number(bAutomatic) - Number(aAutomatic) || Number(matchMetadata(a).order || 1) - Number(matchMetadata(b).order || 1);
+    });
+    var start = roundMatches.filter(function (item) { var metadata = matchMetadata(item); return !(metadata.walkover && metadata.walkover.eliminationAward); }).map(function (item) { return formatMatchTime(item.hora); }).find(function (time) { return Boolean(time); });
+    if (!start) return;
+    var playableIndex = 0;
+    roundMatches.forEach(function (item, index) {
+      var metadata = matchMetadata(item);
+      var automatic = metadata.walkover && metadata.walkover.eliminationAward;
+      metadata.order = index + 1;
+      var time = automatic || (volleyball && playableIndex > 0) ? '' : addMinutesToMatchTime(start, interval * playableIndex);
+      if (!automatic) playableIndex += 1;
+      updateSheetRecord(SHEETS.MATCHES, item.id, { hora: time, observaciones: JSON.stringify(metadata), updated_at: nowIso() });
+    });
+  });
+}
+
+function addMinutesToMatchTime(time, minutes) {
+  var parts = String(time).split(':').map(Number);
+  var total = parts[0] * 60 + parts[1] + minutes;
+  return String(Math.floor(total / 60) % 24).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
 }
 
 function lockMatchRound(current) {
@@ -873,15 +1001,34 @@ var SanctionService = {
 };
 function createSanctionForEvent(eventRecord, match) {
   if (['YELLOW_CARD', 'RED_CARD'].indexOf(String(eventRecord.tipo)) === -1) return null;
-  var duplicate = listSheetRecords(SHEETS.SANCTIONS).find(function (x) { return String(x.evento_id) === String(eventRecord.id) && String(x.estado) !== 'INACTIVE'; }); if (duplicate) return duplicate;
   var settings = getSanctionSettings(String(match.campeonato_id), String(match.disciplina_id));
   var matches = listSheetRecords(SHEETS.MATCHES), playerCards = listSheetRecords(SHEETS.EVENTS).filter(function (x) { if (String(x.jugador_id) !== String(eventRecord.jugador_id) || String(x.tipo) !== String(eventRecord.tipo) || String(x.estado) === 'INACTIVE') return false; var m = matches.find(function (candidate) { return String(candidate.id) === String(x.partido_id); }); return m && String(m.campeonato_id) === String(match.campeonato_id) && String(m.disciplina_id) === String(match.disciplina_id); }).sort(function (a, b) { return String(a.created_at || '').localeCompare(String(b.created_at || '')); });
   var eventIndex = playerCards.findIndex(function (x) { return String(x.id) === String(eventRecord.id); });
-  var count = eventIndex >= 0 ? eventIndex + 1 : playerCards.length;
-  var yellow = eventRecord.tipo === 'YELLOW_CARD', suspension = yellow && count % Number(settings.YELLOW_CARDS_FOR_SUSPENSION || 2) === 0 ? Number(settings.YELLOW_SUSPENSION_MATCHES || 1) : yellow ? 0 : Number(settings.RED_SUSPENSION_MATCHES || 2), expelled = !yellow && count >= Number(settings.RED_CARDS_FOR_EXPULSION || 2), amount = Number(yellow ? settings.YELLOW_CARD_COST : settings.RED_CARD_COST), timestamp = nowIso();
+  var yellow = eventRecord.tipo === 'YELLOW_CARD';
+  var count = yellow ? consecutiveYellowRounds(match, playerCards, matches) : eventIndex >= 0 ? eventIndex + 1 : playerCards.length;
+  var suspension = yellow && count % Number(settings.YELLOW_CARDS_FOR_SUSPENSION || 2) === 0 ? Number(settings.YELLOW_SUSPENSION_MATCHES || 1) : yellow ? 0 : Number(settings.RED_SUSPENSION_MATCHES || 2), expelled = !yellow && count >= Number(settings.RED_CARDS_FOR_EXPULSION || 2), amount = Number(yellow ? settings.YELLOW_CARD_COST : settings.RED_CARD_COST), timestamp = nowIso();
   var reason = expelled ? 'Expulsión por acumulación de tarjetas rojas' : yellow && suspension ? 'Acumulación de tarjetas amarillas' : yellow ? 'Tarjeta amarilla' : 'Tarjeta roja directa';
-  var record = { id: generateUuid(), campeonato_id: match.campeonato_id, evento_id: eventRecord.id, equipo_id: eventRecord.equipo_id, jugador_id: eventRecord.jugador_id, tipo: expelled ? 'EXPULSION' : eventRecord.tipo, motivo: reason, fechas_suspension: suspension, monto: amount, fecha_inicio: match.fecha || '', fecha_fin: '', estado: 'ACTIVE', created_at: timestamp, updated_at: timestamp, observaciones: JSON.stringify({ accumulatedCards: count }) };
+  var metadata = yellow ? { consecutiveCards: count } : { accumulatedCards: count };
+  var duplicate = listSheetRecords(SHEETS.SANCTIONS).find(function (x) { return String(x.evento_id) === String(eventRecord.id) && String(x.estado) !== 'INACTIVE'; });
+  if (duplicate) {
+    var effectiveType = expelled ? 'EXPULSION' : eventRecord.tipo;
+    var unchanged = String(duplicate.tipo) === String(effectiveType) && String(duplicate.motivo) === String(reason) && Number(duplicate.fechas_suspension || 0) === Number(suspension) && Number(duplicate.monto || 0) === Number(amount);
+    if (unchanged) return duplicate;
+    return updateSheetRecord(SHEETS.SANCTIONS, duplicate.id, { tipo: effectiveType, motivo: reason, fechas_suspension: suspension, monto: amount, observaciones: JSON.stringify(metadata), updated_at: timestamp });
+  }
+  var record = { id: generateUuid(), campeonato_id: match.campeonato_id, evento_id: eventRecord.id, equipo_id: eventRecord.equipo_id, jugador_id: eventRecord.jugador_id, tipo: expelled ? 'EXPULSION' : eventRecord.tipo, motivo: reason, fechas_suspension: suspension, monto: amount, fecha_inicio: match.fecha || '', fecha_fin: '', estado: 'ACTIVE', created_at: timestamp, updated_at: timestamp, observaciones: JSON.stringify(metadata) };
   appendSheetRecord(SHEETS.SANCTIONS, record); createPendingPayment(record); return record;
+}
+function consecutiveYellowRounds(currentMatch, playerCards, matches) {
+  var currentRound = Number(currentMatch.jornada || 0);
+  var rounds = playerCards.map(function (card) {
+    var cardMatch = matches.find(function (candidate) { return String(candidate.id) === String(card.partido_id); });
+    return cardMatch ? Number(cardMatch.jornada || 0) : 0;
+  }).filter(function (round) { return round > 0 && round <= currentRound; }).filter(function (round, index, values) { return values.indexOf(round) === index; }).sort(function (a, b) { return a - b; });
+  if (rounds.indexOf(currentRound) === -1) rounds.push(currentRound);
+  var streak = 1;
+  for (var index = rounds.length - 1; index > 0 && rounds[index - 1] === rounds[index] - 1; index -= 1) streak += 1;
+  return streak;
 }
 function deactivateSanctionForEvent(eventId) { listSheetRecords(SHEETS.SANCTIONS).filter(function (x) { return String(x.evento_id) === String(eventId) && String(x.estado) !== 'INACTIVE'; }).forEach(function (sanction) { updateSheetRecord(SHEETS.SANCTIONS, sanction.id, { estado: 'INACTIVE', updated_at: nowIso() }); listSheetRecords(SHEETS.PAYMENTS).filter(function (p) { return String(p.sancion_id) === String(sanction.id) && String(p.estado) !== 'INACTIVE'; }).forEach(function (p) { updateSheetRecord(SHEETS.PAYMENTS, p.id, { estado: 'INACTIVE', updated_at: nowIso() }); }); }); }
 function toSanctionResponse(x) { return { id: x.id, championshipId: x.campeonato_id, eventId: x.evento_id, teamId: x.equipo_id, playerId: x.jugador_id, type: x.tipo, reason: x.motivo, suspensionMatches: Number(x.fechas_suspension || 0), amount: Number(x.monto || 0), startDate: x.fecha_inicio || '', endDate: x.fecha_fin || '', status: x.estado, createdAt: x.created_at }; }
@@ -910,7 +1057,8 @@ var ResultsBootstrapService = {
     var matchIds = matches.map(function (item) { return String(item.id); });
     var players = listSheetRecords(SHEETS.PLAYERS).filter(function (item) { return teamIds.indexOf(String(item.equipo_id)) !== -1 && String(item.estado) !== 'INACTIVE'; }).map(toPlayerResponse);
     var events = listSheetRecords(SHEETS.EVENTS).filter(function (item) { return matchIds.indexOf(String(item.partido_id)) !== -1 && String(item.estado) !== 'INACTIVE'; }).map(toEventResponse);
-    var minutes = listSheetRecords(SHEETS.MINUTES).filter(function (item) { return matchIds.indexOf(String(item.partido_id)) !== -1 && String(item.estado) !== 'INACTIVE'; }).map(toMinuteResponse);
+    var publicOnly = String(params.publicOnly || '') === 'true';
+    var minutes = publicOnly ? [] : listSheetRecords(SHEETS.MINUTES).filter(function (item) { return matchIds.indexOf(String(item.partido_id)) !== -1 && String(item.estado) !== 'INACTIVE'; }).map(toMinuteResponse);
     var sanctions = listSheetRecords(SHEETS.SANCTIONS).filter(function (item) { return String(item.campeonato_id) === championshipId && String(item.estado) !== 'INACTIVE'; }).map(toSanctionResponse);
     var payments = listSheetRecords(SHEETS.PAYMENTS).filter(function (item) { return String(item.campeonato_id) === championshipId && String(item.estado) !== 'INACTIVE'; }).map(toPaymentResponse);
 

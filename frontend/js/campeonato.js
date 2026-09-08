@@ -2,6 +2,7 @@ import { apiGet } from './api.js';
 
 const selectedId = localStorage.getItem('ligaControlChampionshipId') || '';
 const detail = document.querySelector('#championship-detail');
+const summaryCacheKey = `ligaControlSummary:${selectedId}`;
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 
 function formatDate(value) {
@@ -10,13 +11,11 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'long', year: 'numeric' }).format(date);
 }
 
-async function loadSummary() {
-  try {
-    const [championshipResponse, disciplineResponse, teamResponse] = await Promise.all([apiGet('/api/championships'), apiGet('/api/disciplines'), apiGet('/api/teams')]);
-    const championship = championshipResponse.data.items.find((item) => item.id === selectedId && item.status !== 'INACTIVE');
+function renderSummary(data) {
+    const championship = data.championship;
     if (!championship) { window.location.href = 'dashboard.html'; return; }
-    const disciplines = disciplineResponse.data.items.filter((item) => item.championshipId === selectedId);
-    const teams = teamResponse.data.items.filter((item) => item.championshipId === selectedId && item.status !== 'INACTIVE');
+    const disciplines = data.disciplines || [];
+    const teams = data.teams || [];
     document.querySelector('#sidebar-championship').textContent = championship.shortName || championship.name;
     document.querySelector('#championship-title').textContent = championship.name;
     const savedDisciplineId = localStorage.getItem('ligaControlDisciplineId');
@@ -30,6 +29,17 @@ async function loadSummary() {
       <div class="discipline-section"><div class="section-heading"><div><h2>Deportes del campeonato</h2><p class="muted">Elige un deporte para administrar sus equipos, jugadores y partidos.</p></div></div>
       <div class="discipline-grid">${disciplines.length ? disciplines.map((item) => { const count = teams.filter((team) => team.disciplineId === item.id).length; return `<a class="discipline-card${item.id === selectedDisciplineId ? ' selected' : ''}" href="equipos.html" data-discipline-id="${escapeHtml(item.id)}"><span class="discipline-icon">${sportIcon(item)}</span><div class="discipline-card-content"><span class="discipline-kicker">Deporte</span><strong>${escapeHtml(item.name)}</strong><p>${count} ${count === 1 ? 'equipo inscrito' : 'equipos inscritos'}</p></div><span class="discipline-enter">Administrar <b>→</b></span></a>`; }).join('') : '<div class="empty-state compact"><strong>Sin deportes</strong><p>Este campeonato fue creado sin deportes.</p></div>'}</div></div>`;
     detail.querySelectorAll('[data-discipline-id]').forEach((card) => card.addEventListener('click', () => localStorage.setItem('ligaControlDisciplineId', card.dataset.disciplineId)));
-  } catch (error) { detail.innerHTML = `<div class="error-message">${escapeHtml(error.message)}</div>`; }
+}
+
+async function loadSummary() {
+  let renderedCached = false;
+  try {
+    const cached = sessionStorage.getItem(summaryCacheKey);
+    if (cached) { try { renderSummary(JSON.parse(cached)); renderedCached = true; } catch (error) { sessionStorage.removeItem(summaryCacheKey); } }
+    const response = await apiGet('/api/championships', { summaryId: selectedId });
+    if (!response.data.championship) throw new Error('El backend publicado debe actualizarse para usar la carga rápida del resumen.');
+    sessionStorage.setItem(summaryCacheKey, JSON.stringify(response.data));
+    renderSummary(response.data);
+  } catch (error) { if (!renderedCached) detail.innerHTML = `<div class="error-message">${escapeHtml(error.message)}</div>`; }
 }
 loadSummary();

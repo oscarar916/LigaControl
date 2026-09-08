@@ -10,7 +10,13 @@ const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
 const teamName = (id) => teams.find((team) => team.id === id)?.name || 'Equipo';
 const playerName = (id) => players.find((player) => player.id === id)?.fullName || 'Jugador';
 const activeMatches = () => matches.filter((match) => match.closed || match.status === 'FINISHED');
+const standingsMatches = () => {
+  const finished = activeMatches();
+  const currentRound = finished.filter((match) => !match.automaticWalkover).reduce((latest, match) => Math.max(latest, Number(match.round || 0)), 0);
+  return finished.filter((match) => !match.automaticWalkover || Number(match.round || 0) <= currentRound);
+};
 const paymentFor = (sanctionId) => payments.find((payment) => payment.sanctionId === sanctionId);
+const isVolley = () => /v[oó]ley|volley/i.test(discipline?.name || '');
 const pendingAmountForSanction = (sanction) => {
   const payment = paymentFor(sanction.id);
   if (payment?.status === 'PAID') return 0;
@@ -30,7 +36,7 @@ function pendingPaymentDetail(items) {
   const rounds = [...new Set(items.map(roundForSanction).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
   const label = items.length === 1 ? '1 multa pendiente' : `${items.length} multas pendientes`;
   const detail = rounds.length ? `Fecha${rounds.length === 1 ? '' : 's'} ${rounds.join(', ')}` : 'Fecha no identificada';
-  return `<strong>S/ ${items.reduce((sum, sanction) => sum + pendingAmountForSanction(sanction), 0).toFixed(2)}</strong><small>${esc(label)} · ${esc(detail)}</small>`;
+  return `<div class="pending-payment-detail"><strong>S/ ${items.reduce((sum, sanction) => sum + pendingAmountForSanction(sanction), 0).toFixed(2)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></div>`;
 }
 function suspensionTextForSanctions(items) {
   const total = items.reduce((sum, sanction) => sum + Number(sanction.suspensionMatches || 0), 0);
@@ -46,7 +52,7 @@ function suspensionTextForSanctions(items) {
 
 function standings() {
   const table = Object.fromEntries(teams.map((team) => [team.id, { team, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, pts: 0 }]));
-  activeMatches().forEach((match) => {
+  standingsMatches().forEach((match) => {
     const home = table[match.homeId]; const away = table[match.awayId];
     if (!home || !away || match.homeScore === '' || match.awayScore === '') return;
     const homeScore = Number(match.homeScore); const awayScore = Number(match.awayScore);
@@ -85,8 +91,9 @@ function table(headers, rows, emptyText) {
 
 function renderStandings() {
   const standingsRows = standings();
-  const rows = standingsRows.map((item, index) => `<tr class="${standingsRows.length > 8 && index < 8 ? 'qualified-row ' : ''}${standingsRows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''}"><td><strong>${index + 1}</strong></td><td><strong>${esc(item.team.name)}</strong></td><td>${item.pj}</td><td>${item.pg}</td><td>${item.pe}</td><td>${item.pp}</td><td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td><td><strong>${item.pts}</strong></td></tr>`);
-  return table(['Pos.', 'Equipo', 'PJ', 'PG', 'PE', 'PP', 'GF', 'GC', 'DG', 'PTS'], rows, 'Todavía no hay equipos registrados.');
+  const showGoalColumns = !isVolley();
+  const rows = standingsRows.map((item, index) => `<tr class="${standingsRows.length > 8 && index < 8 ? 'qualified-row ' : ''}${standingsRows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''}"><td><strong>${index + 1}</strong></td><td><strong>${esc(item.team.name)}</strong>${item.team.status === 'ELIMINATED' ? '<span class="badge eliminated-badge">Eliminado · 2 W.O.</span>' : ''}</td><td>${item.pj}</td><td>${item.pg}</td>${isVolley() ? '' : `<td>${item.pe}</td>`}<td>${item.pp}</td>${showGoalColumns ? `<td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td>` : ''}<td><strong>${item.pts}</strong></td></tr>`);
+  return table(['Pos.', 'Equipo', 'PJ', 'PG', ...(isVolley() ? [] : ['PE']), 'PP', ...(showGoalColumns ? ['GF', 'GC', 'DG'] : []), 'PTS'], rows, 'Todavía no hay equipos registrados.');
 }
 
 function renderScorers() {
@@ -112,9 +119,9 @@ function renderCards() {
     const showRed = totals.red > 0;
     const rows = items.map((item) => {
       const paymentCell = pendingPaymentDetail(item.pendingSanctions);
-      return `<tr><td>${esc(playerName(item.playerId))}</td><td><span class="yellow-total">${item.yellow}</span></td>${showRed ? `<td>${item.red ? `<span class="red-total">${item.red}</span>` : '—'}</td>` : ''}<td class="suspension-cell">${item.suspensionText}</td><td>${paymentCell}</td></tr>`;
+      return `<tr><td>${esc(playerName(item.playerId))}</td><td><span class="yellow-total" title="Total de amarillas acumuladas en el campeonato">${item.yellow}</span></td>${showRed ? `<td>${item.red ? `<span class="red-total">${item.red}</span>` : '—'}</td>` : ''}<td class="suspension-cell">${item.suspensionText}</td><td>${paymentCell}</td></tr>`;
     });
-    return `<section class="sanction-team-card"><header><div><small>Equipo</small><h3>${esc(team.name)}</h3></div><div class="sanction-team-summary"><span>🟨 <strong>${totals.yellow}</strong></span>${showRed ? `<span>🟥 <strong>${totals.red}</strong></span>` : ''}<span class="sanction-team-amount">Pendiente: <strong>S/ ${totals.amount.toFixed(2)}</strong></span></div></header>${table(['Jugador', 'Amarillas', ...(showRed ? ['Rojas'] : []), 'Suspensión', 'Pago pendiente'], rows, '')}</section>`;
+    return `<section class="sanction-team-card${showRed ? ' has-red-column' : ''}"><header><div><small>Equipo</small><h3>${esc(team.name)}</h3></div><div class="sanction-team-summary"><span title="Total de amarillas acumuladas por el equipo">🟨 <strong>${totals.yellow}</strong></span>${showRed ? `<span>🟥 <strong>${totals.red}</strong></span>` : ''}<span class="sanction-team-amount">Pendiente: <strong>S/ ${totals.amount.toFixed(2)}</strong></span></div></header>${table(['Jugador', 'Amarillas acumuladas', ...(showRed ? ['Rojas'] : []), 'Suspensión', 'Pago pendiente'], rows, '')}</section>`;
   }).join('')}</div>`;
 }
 
@@ -143,7 +150,7 @@ function renderReport() {
 
 function reportShareText() {
   const title = `${reportDefinitions[activeReport].title} — ${championship?.name || 'Campeonato'} (${discipline?.name || 'Deporte'})`;
-  if (activeReport === 'standings') return [title, '', ...standings().map((item, index) => `${index + 1}. ${item.team.name} — ${item.pts} pts. (DG ${item.gf - item.gc})`)].join('\n');
+  if (activeReport === 'standings') return [title, '', ...standings().map((item, index) => `${index + 1}. ${item.team.name} — ${item.pts} pts.${isVolley() ? '' : ` (DG ${item.gf - item.gc})`}`)].join('\n');
   if (activeReport === 'scorers') return [title, '', ...eventTotals(['GOAL']).sort((a, b) => b.total - a.total).map((item, index) => `${index + 1}. ${playerName(item.playerId)} (${teamName(item.teamId)}) — ${item.total} goles`)].join('\n');
   return `${title}\n\nConsulta el reporte completo impreso o guardado como PDF desde LigaControl.`;
 }

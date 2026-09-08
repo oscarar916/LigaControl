@@ -34,6 +34,11 @@ var TeamService = {
   put: function (context) {
     var body = context.body || {};
     if (!body.id || !validateUuid(body.id)) throw appError('VALIDATION_ERROR', 'El id del equipo no es válido.', 400);
+    if (body.eliminateForWalkovers) {
+      var team = listSheetRecords(SHEETS.TEAMS).find(function (item) { return String(item.id) === String(body.id) && String(item.estado) !== 'INACTIVE'; });
+      if (!team) throw appError('NOT_FOUND', 'El equipo no existe.', 404);
+      return reconcileWalkoverEliminations(team.campeonato_id, team.disciplina_id, team.id);
+    }
     var input = normalizeTeamInput(body, true);
     var changes = { updated_at: nowIso() };
     Object.keys(input).forEach(function (key) { if (input[key] !== undefined) changes[key] = input[key]; });

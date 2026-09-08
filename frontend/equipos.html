@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Equipos | LigaControl</title>
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=20260903-2">
 </head>
 <body>
   <div class="app-shell">
@@ -50,6 +50,7 @@
       <div class="modal-actions field-wide"><span id="team-form-status" class="form-status" role="status"></span><div class="button-group"><button id="cancel-team-modal" class="secondary-button" type="button">Cancelar</button><button class="action-button" type="submit">Guardar equipo</button></div></div>
     </form>
   </dialog>
-  <script type="module" src="js/app.js"></script><script type="module" src="js/equipos.js"></script>
+  <dialog id="team-management-modal" class="app-modal team-management-modal"><div class="modal-header"><div><small>Gestión de participación</small><h2 id="management-team-name">Equipo</h2><p id="management-team-summary" class="muted"></p></div><button id="close-team-management" class="icon-button" type="button">×</button></div><div id="management-alert"></div><div id="management-match-history" class="table-wrap"></div><div class="modal-actions"><span id="management-status" class="form-status" role="status"></span><div class="button-group"><button id="view-team-roster" class="secondary-button" type="button">Ver jugadores</button><button id="eliminate-team-walkovers" class="danger-button" type="button" disabled>Eliminar del campeonato</button></div></div></dialog>
+  <script type="module" src="js/app.js"></script><script type="module" src="js/equipos.js?v=20260903-3"></script>
 </body>
 </html>

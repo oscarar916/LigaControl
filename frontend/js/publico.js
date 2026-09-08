@@ -11,6 +11,7 @@ const summary = document.querySelector('#public-summary');
 const shareButton = document.querySelector('#share-public-page');
 const PUBLIC_SITE_BASE_URL = 'https://oscarar916.github.io/LigaControl/publico.html';
 let championship; let discipline; let teams = []; let players = []; let matches = []; let events = []; let sanctions = []; let payments = []; let activeView = 'schedule';
+const publicCacheKey = () => `ligaControlPublic:${championshipId}:${disciplineId}`;
 
 const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 const teamName = (id) => teams.find((team) => team.id === id)?.name || 'Equipo';
@@ -45,7 +46,9 @@ const scheduleMatchCenter = (match) => {
 
 function standings() {
   const table = Object.fromEntries(teams.map((team) => [team.id, { team, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, pts: 0 }]));
-  matches.filter(played).forEach((match) => { const home = table[match.homeId]; const away = table[match.awayId]; if (!home || !away) return; const hs = Number(match.homeScore); const as = Number(match.awayScore); home.pj += 1; away.pj += 1; home.gf += hs; home.gc += as; away.gf += as; away.gc += hs; if (hs > as) { home.pg += 1; home.pts += 3; away.pp += 1; } else if (as > hs) { away.pg += 1; away.pts += 3; home.pp += 1; } else { home.pe += 1; away.pe += 1; home.pts += 1; away.pts += 1; } });
+  const finished = matches.filter(played);
+  const currentRound = finished.filter((match) => !match.automaticWalkover).reduce((latest, match) => Math.max(latest, Number(match.round || 0)), 0);
+  finished.filter((match) => !match.automaticWalkover || Number(match.round || 0) <= currentRound).forEach((match) => { const home = table[match.homeId]; const away = table[match.awayId]; if (!home || !away) return; const hs = Number(match.homeScore); const as = Number(match.awayScore); home.pj += 1; away.pj += 1; home.gf += hs; home.gc += as; away.gf += as; away.gc += hs; if (hs > as) { home.pg += 1; home.pts += 3; away.pp += 1; } else if (as > hs) { away.pg += 1; away.pts += 3; home.pp += 1; } else { home.pe += 1; away.pe += 1; home.pts += 1; away.pts += 1; } });
   return Object.values(table).sort((a, b) => b.pts - a.pts || (b.gf - b.gc) - (a.gf - a.gc) || b.gf - a.gf || a.team.name.localeCompare(b.team.name));
 }
 
@@ -85,7 +88,8 @@ function renderResults() {
 
 function renderStandings() {
   const rows = standings();
-  content.innerHTML = `<div class="public-section-heading"><div><small>Clasificación actual</small><h2>Tabla de posiciones</h2></div><div class="standings-legend"><span>3 puntos por victoria · 1 por empate</span></div></div><div class="table-wrap"><table class="public-standings"><thead><tr><th>Pos.</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>GF</th><th>GC</th><th>DG</th><th>PTS</th></tr></thead><tbody>${rows.map((item, index) => `<tr class="${rows.length > 8 && index < 8 ? 'qualified-row ' : ''}${rows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''}"><td><strong>${index + 1}</strong></td><td><strong>${esc(item.team.name)}</strong></td><td>${item.pj}</td><td>${item.pg}</td><td>${item.pe}</td><td>${item.pp}</td><td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td><td><strong>${item.pts}</strong></td></tr>`).join('')}</tbody></table></div>`;
+  const showGoalColumns = !isVolleyball();
+  content.innerHTML = `<div class="public-section-heading"><div><small>Clasificación actual</small><h2>Tabla de posiciones</h2></div><div class="standings-legend"><span>${isVolleyball() ? '3 puntos por victoria · 0 por derrota' : '3 puntos por victoria · 1 por empate'}</span></div></div><div class="table-wrap"><table class="public-standings"><thead><tr><th>Pos.</th><th>Equipo</th><th>PJ</th><th>PG</th>${isVolleyball() ? '' : '<th>PE</th>'}<th>PP</th>${showGoalColumns ? '<th>GF</th><th>GC</th><th>DG</th>' : ''}<th>PTS</th></tr></thead><tbody>${rows.map((item, index) => `<tr class="${rows.length > 8 && index < 8 ? 'qualified-row ' : ''}${rows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''}"><td><strong>${index + 1}</strong></td><td><strong>${esc(item.team.name)}</strong>${item.team.status === 'ELIMINATED' ? '<span class="badge eliminated-badge">Eliminado · 2 W.O.</span>' : ''}</td><td>${item.pj}</td><td>${item.pg}</td>${isVolleyball() ? '' : `<td>${item.pe}</td>`}<td>${item.pp}</td>${showGoalColumns ? `<td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td>` : ''}<td><strong>${item.pts}</strong></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderScorers() {
@@ -101,6 +105,12 @@ function renderSanctions() {
 
 const renderers = { schedule: renderSchedule, standings: renderStandings, scorers: renderScorers, sanctions: renderSanctions };
 function render() { document.querySelectorAll('[data-public-view]').forEach((button) => button.classList.toggle('active', button.dataset.publicView === activeView)); renderers[activeView](); }
+function applyPublicData(data) {
+  championship = (data.championships || []).find((item) => item.id === championshipId); discipline = (data.disciplines || []).find((item) => item.id === disciplineId); teams = data.teams || []; players = data.players || []; matches = data.matches || []; events = data.events || [];
+  const playerIds = new Set(players.map((player) => player.id)); const officialMatchIds = new Set(matches.filter(played).map((match) => match.id)); const officialEventIds = new Set(events.filter((event) => officialMatchIds.has(event.matchId)).map((event) => event.id)); sanctions = (data.sanctions || []).filter((sanction) => playerIds.has(sanction.playerId) && officialEventIds.has(sanction.eventId)); const sanctionIds = new Set(sanctions.map((sanction) => sanction.id)); payments = (data.payments || []).filter((payment) => sanctionIds.has(payment.sanctionId));
+  document.title = `${championshipDisplayName()} | LigaControl`; document.querySelector('#public-organizer').textContent = championship?.organizer || 'Información oficial'; document.querySelector('#public-championship').textContent = championshipDisplayName(); document.querySelector('#public-discipline').textContent = discipline?.name || 'Deporte'; document.querySelector('#public-status').textContent = championship?.status || 'Información oficial';
+  renderSummary(); render();
+}
 function setPublicChrome({ isHome = false } = {}) {
   tabs.hidden = isHome;
   summary.hidden = isHome;
@@ -167,6 +177,7 @@ async function resolvePublicContext() {
 }
 
 async function load() {
+  let renderedCached = false;
   try {
     if (publicHomeRequested) {
       await loadPublicHome();
@@ -175,13 +186,13 @@ async function load() {
     setPublicChrome({ isHome: false });
     await resolvePublicContext();
     if (!championshipId || !disciplineId) throw new Error('Este enlace no identifica un campeonato y deporte válidos.');
-    const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId }); const data = response.data || {};
-    championship = (data.championships || []).find((item) => item.id === championshipId); discipline = (data.disciplines || []).find((item) => item.id === disciplineId); teams = data.teams || []; players = data.players || []; matches = data.matches || []; events = data.events || [];
-    const playerIds = new Set(players.map((player) => player.id)); const officialMatchIds = new Set(matches.filter(played).map((match) => match.id)); const officialEventIds = new Set(events.filter((event) => officialMatchIds.has(event.matchId)).map((event) => event.id)); sanctions = (data.sanctions || []).filter((sanction) => playerIds.has(sanction.playerId) && officialEventIds.has(sanction.eventId)); const sanctionIds = new Set(sanctions.map((sanction) => sanction.id)); payments = (data.payments || []).filter((payment) => sanctionIds.has(payment.sanctionId));
-    document.title = `${championshipDisplayName()} | LigaControl`; document.querySelector('#public-organizer').textContent = championship?.organizer || 'Información oficial'; document.querySelector('#public-championship').textContent = championshipDisplayName(); document.querySelector('#public-discipline').textContent = discipline?.name || 'Deporte'; document.querySelector('#public-status').textContent = championship?.status || 'Información oficial';
+    const cached = localStorage.getItem(publicCacheKey());
+    if (cached) { try { applyPublicData(JSON.parse(cached)); renderedCached = true; } catch (error) { localStorage.removeItem(publicCacheKey()); } }
+    const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId, publicOnly: true }); const data = response.data || {};
+    localStorage.setItem(publicCacheKey(), JSON.stringify(data));
+    applyPublicData(data);
     if (!params.get('championshipId')) history.replaceState(null, '', `publico.html?championshipId=${encodeURIComponent(championshipId)}&disciplineId=${encodeURIComponent(disciplineId)}`);
-    renderSummary(); render();
-  } catch (error) { content.innerHTML = `<div class="empty-state"><strong>No se pudo abrir la vista pública</strong><p>${esc(error.message)}</p></div>`; document.querySelector('#public-status').textContent = 'No disponible'; }
+  } catch (error) { if (!renderedCached) { content.innerHTML = `<div class="empty-state"><strong>No se pudo abrir la vista pública</strong><p>${esc(error.message)}</p></div>`; document.querySelector('#public-status').textContent = 'No disponible'; } }
 }
 
 document.querySelector('.public-tabs').addEventListener('click', (event) => { const button = event.target.closest('[data-public-view]'); if (button) { activeView = button.dataset.publicView; render(); } });

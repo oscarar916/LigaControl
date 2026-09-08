@@ -108,7 +108,9 @@ function updateRoundControls() {
 
 function standings() {
   const table = Object.fromEntries(teams.map(team => [team.id, { team, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, pts: 0 }]));
-  matches.filter(match => match.closed || match.status === 'FINISHED').forEach(match => {
+  const finished = matches.filter(match => match.closed || match.status === 'FINISHED');
+  const currentRound = finished.filter(match => !match.automaticWalkover).reduce((latest, match) => Math.max(latest, Number(match.round || 0)), 0);
+  finished.filter(match => !match.automaticWalkover || Number(match.round || 0) <= currentRound).forEach(match => {
     const home = table[match.homeId], away = table[match.awayId];
     if (!home || !away) return;
     const homeScore = Number(match.homeScore), awayScore = Number(match.awayScore);
@@ -122,12 +124,15 @@ function standings() {
 
 function renderStandings() {
   const rows = standings();
+  const showGoalColumns = !isVolley();
+  document.querySelector('#standings-view .section-heading .muted').textContent = isVolley() ? '3 puntos por victoria y 0 por derrota.' : '3 puntos por victoria, 1 por empate y 0 por derrota.';
+  document.querySelector('#standings-view thead tr').innerHTML = `<th>Pos.</th><th>Equipo</th><th>PJ</th><th>PG</th>${isVolley() ? '' : '<th>PE</th>'}<th>PP</th>${showGoalColumns ? '<th>GF</th><th>GC</th><th>DG</th>' : ''}<th>PTS</th>`;
   standingsBody.innerHTML = rows.map((item, index) => {
     const classes = [
       rows.length > 8 && index < 8 ? 'qualified-row' : '',
       rows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''
     ].filter(Boolean).join(' ');
-    return `<tr class="${classes}"><td><strong>${index + 1}</strong></td><td>${esc(item.team.name)}</td><td>${item.pj}</td><td>${item.pg}</td><td>${item.pe}</td><td>${item.pp}</td><td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td><td><strong>${item.pts}</strong></td></tr>`;
+    return `<tr class="${classes}"><td><strong>${index + 1}</strong></td><td>${esc(item.team.name)}${item.team.status === 'ELIMINATED' ? '<span class="badge eliminated-badge">Eliminado · 2 W.O.</span>' : ''}</td><td>${item.pj}</td><td>${item.pg}</td>${isVolley() ? '' : `<td>${item.pe}</td>`}<td>${item.pp}</td>${showGoalColumns ? `<td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td>` : ''}<td><strong>${item.pts}</strong></td></tr>`;
   }).join('');
 }
 
@@ -274,6 +279,7 @@ async function load() {
   try {
     if (!championshipId || !disciplineId) throw new Error('No hay un campeonato o deporte seleccionado. Regresa al resumen y entra nuevamente al deporte.');
     matchList.innerHTML = '<p class="muted">Cargando resultados…</p>';
+    const selectedRound = roundSelect.value;
     const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId });
     const data = response.data || {};
     const championship = (data.championships || []).find(item => item.id === championshipId);
@@ -292,6 +298,7 @@ async function load() {
     document.querySelector('#results-context').textContent = `${championship?.name || ''} · ${discipline?.name || ''}`;
     const rounds = [...new Set(matches.map(item => item.round))].sort((a, b) => a - b);
     roundSelect.innerHTML = rounds.map(round => `<option value="${round}">Fecha ${round}</option>`).join('');
+    if (rounds.some(round => String(round) === selectedRound)) roundSelect.value = selectedRound;
     renderMatches(); renderStandings(); renderSanctions();
   } catch (error) {
     matchList.innerHTML = `<p class="error-message">${esc(error.message)}</p>`;
@@ -467,12 +474,14 @@ document.querySelector('#apply-walkover').addEventListener('click', async event 
       events.push(goalResponse.data);
       createdGoalIds.push(goalResponse.data.id);
     }
-    const response = await apiPut('/api/matches', { id: activeMatch.id, walkoverTeamId: absentTeamId });
-    activeMatch = response.data;
-    matches = matches.map(match => match.id === activeMatch.id ? activeMatch : match);
+    const activeMatchId = activeMatch.id;
+    const response = await apiPut('/api/matches', { id: activeMatchId, walkoverTeamId: absentTeamId });
+    const needsEliminationReview = (response.data.walkoverElimination?.candidateTeamIds || []).includes(absentTeamId) && !(response.data.walkoverElimination?.eliminatedTeamIds || []).includes(absentTeamId);
+    await load();
+    activeMatch = matches.find(match => match.id === activeMatchId) || response.data;
     scoreForm.elements.homeScore.value = activeMatch.homeScore;
     scoreForm.elements.awayScore.value = activeMatch.awayScore;
-    status.textContent = `Walkover aplicado: 3–0. Los 3 goles fueron asignados a ${scorer?.fullName || 'el jugador seleccionado'}.`;
+    status.textContent = needsEliminationReview ? `Walkover aplicado: 3–0. Alerta: ${teamName(absentTeamId)} alcanzó el límite de W.O.; revisa y confirma su eliminación en Gestión de equipos.` : `Walkover aplicado: 3–0. Los 3 goles fueron asignados a ${scorer?.fullName || 'el jugador seleccionado'}.`;
     renderRosters();
     renderMatches(); renderStandings();
   } catch (error) {

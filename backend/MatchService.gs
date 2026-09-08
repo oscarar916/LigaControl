@@ -11,6 +11,10 @@ var MatchService = {
 
   post: function (context) {
     var body = context.body || {};
+    if (body.reconcileWalkovers) {
+      if (!validateUuid(body.championshipId) || !validateUuid(body.disciplineId)) throw appError('VALIDATION_ERROR', 'Campeonato o disciplina inválidos.', 400);
+      return reconcileWalkoverEliminations(body.championshipId, body.disciplineId);
+    }
     if (Array.isArray(body.matches)) return createFixture(body);
     return createSingleMatch(body);
   },
@@ -54,7 +58,11 @@ var MatchService = {
       else delete metadata.walkover;
     }
     if (body.order !== undefined || body.orderConfirmed !== undefined || body.walkoverTeamId !== undefined) changes.observaciones = JSON.stringify(metadata);
-    return toMatchResponse(updateSheetRecord(SHEETS.MATCHES, body.id, changes));
+    var updatedMatch = updateSheetRecord(SHEETS.MATCHES, body.id, changes);
+    var elimination = body.walkoverTeamId !== undefined ? reconcileWalkoverEliminations(current.campeonato_id, current.disciplina_id) : null;
+    var response = toMatchResponse(updatedMatch);
+    if (elimination) response.walkoverElimination = elimination;
+    return response;
   },
 
   delete: function (context) {
@@ -111,7 +119,7 @@ function toMatchResponse(record) {
     homeId: record.local_id, awayId: record.visitante_id,
     homeScore: record.marcador_local === '' ? '' : Number(record.marcador_local), awayScore: record.marcador_visitante === '' ? '' : Number(record.marcador_visitante),
     winnerId: record.ganador_id || '', closed: record.cerrado === true || String(record.cerrado).toLowerCase() === 'true',
-    status: record.estado, isWalkover: Boolean(metadata.walkover), walkoverTeamId: metadata.walkover && metadata.walkover.absentTeamId || '', createdAt: record.created_at, updatedAt: record.updated_at
+    status: record.estado, isWalkover: Boolean(metadata.walkover), automaticWalkover: Boolean(metadata.walkover && metadata.walkover.eliminationAward), walkoverEliminationLimit: Number(metadata.walkover && metadata.walkover.eliminationLimit || 0), walkoverTeamId: metadata.walkover && metadata.walkover.absentTeamId || '', createdAt: record.created_at, updatedAt: record.updated_at
   };
 }
 
@@ -119,6 +127,101 @@ function isMatchLocked(record) {
   var metadata = {};
   try { metadata = JSON.parse(record.observaciones || '{}'); } catch (error) { metadata = {}; }
   return Boolean(metadata.roundLocked);
+}
+
+function matchMetadata(record) {
+  try { return JSON.parse(record.observaciones || '{}'); } catch (error) { return {}; }
+}
+
+function reconcileWalkoverEliminations(championshipId, disciplineId, confirmTeamId) {
+  var timestamp = nowIso();
+  var settings = getSanctionSettings(championshipId, disciplineId);
+  var limit = Math.max(1, Number(settings.WALKOVER_ELIMINATION_LIMIT || 2));
+  var matches = listSheetRecords(SHEETS.MATCHES).filter(function (item) {
+    return String(item.campeonato_id) === String(championshipId) && String(item.disciplina_id) === String(disciplineId) && String(item.estado) !== 'INACTIVE';
+  });
+  var losses = {};
+  matches.forEach(function (item) {
+    var metadata = matchMetadata(item);
+    if (!metadata.walkover || metadata.walkover.eliminationAward || !metadata.walkover.absentTeamId) return;
+    var teamId = String(metadata.walkover.absentTeamId);
+    losses[teamId] = losses[teamId] || [];
+    losses[teamId].push(Number(item.jornada));
+  });
+  var teams = listSheetRecords(SHEETS.TEAMS).filter(function (item) {
+    return String(item.campeonato_id) === String(championshipId) && String(item.disciplina_id) === String(disciplineId) && String(item.estado) !== 'INACTIVE';
+  });
+  var candidates = Object.keys(losses).filter(function (teamId) { return losses[teamId].length >= limit; });
+  if (confirmTeamId) {
+    var confirmedId = String(confirmTeamId);
+    if (candidates.indexOf(confirmedId) === -1) throw appError('VALIDATION_ERROR', 'El equipo todavía no alcanza el límite de walkovers.', 400);
+    var confirmedTeam = teams.find(function (team) { return String(team.id) === confirmedId; });
+    if (!confirmedTeam) throw appError('NOT_FOUND', 'El equipo no existe.', 404);
+    if (String(confirmedTeam.estado) !== 'ELIMINATED') updateSheetRecord(SHEETS.TEAMS, confirmedId, { estado: 'ELIMINATED', updated_at: timestamp });
+    confirmedTeam.estado = 'ELIMINATED';
+  }
+  var eliminated = {};
+  teams.filter(function (team) { return String(team.estado) === 'ELIMINATED'; }).forEach(function (team) {
+    var rounds = (losses[String(team.id)] || []).sort(function (a, b) { return a - b; });
+    if (rounds.length >= limit) eliminated[String(team.id)] = rounds[limit - 1];
+  });
+  matches.forEach(function (item) {
+    var metadata = matchMetadata(item);
+    var autoAward = metadata.walkover && metadata.walkover.eliminationAward;
+    var homeEliminationRound = eliminated[String(item.local_id)];
+    var awayEliminationRound = eliminated[String(item.visitante_id)];
+    var absentTeamId = homeEliminationRound !== undefined && Number(item.jornada) > homeEliminationRound && awayEliminationRound === undefined
+      ? String(item.local_id)
+      : awayEliminationRound !== undefined && Number(item.jornada) > awayEliminationRound && homeEliminationRound === undefined
+        ? String(item.visitante_id)
+        : '';
+    if (absentTeamId && (!metadata.walkover || autoAward)) {
+      metadata.walkover = { absentTeamId: absentTeamId, score: '3-0', registeredAt: timestamp, eliminationAward: true, eliminationLimit: limit };
+      var homeScore = absentTeamId === String(item.local_id) ? 0 : 3;
+      var awayScore = absentTeamId === String(item.visitante_id) ? 0 : 3;
+      updateSheetRecord(SHEETS.MATCHES, item.id, { marcador_local: homeScore, marcador_visitante: awayScore, ganador_id: homeScore > awayScore ? item.local_id : item.visitante_id, cerrado: true, estado: 'FINISHED', observaciones: JSON.stringify(metadata), updated_at: timestamp });
+    } else if (!absentTeamId && autoAward) {
+      delete metadata.walkover;
+      updateSheetRecord(SHEETS.MATCHES, item.id, { marcador_local: '', marcador_visitante: '', ganador_id: '', cerrado: false, estado: 'SCHEDULED', observaciones: JSON.stringify(metadata), updated_at: timestamp });
+    }
+  });
+  compactEliminatedMatchSchedules(championshipId, disciplineId);
+  return { eliminatedTeamIds: Object.keys(eliminated), candidateTeamIds: candidates, threshold: limit, automaticScore: '3-0' };
+}
+
+function compactEliminatedMatchSchedules(championshipId, disciplineId) {
+  var discipline = listSheetRecords(SHEETS.DISCIPLINES).find(function (item) { return String(item.id) === String(disciplineId); });
+  var volleyball = /v[oó]ley|volley/i.test(String(discipline && discipline.nombre || ''));
+  var interval = volleyball ? 60 : 40;
+  var items = listSheetRecords(SHEETS.MATCHES).filter(function (item) { return String(item.campeonato_id) === String(championshipId) && String(item.disciplina_id) === String(disciplineId) && String(item.estado) !== 'INACTIVE'; });
+  var rounds = {};
+  items.forEach(function (item) { (rounds[item.jornada] = rounds[item.jornada] || []).push(item); });
+  Object.keys(rounds).forEach(function (round) {
+    var roundMatches = rounds[round].sort(function (a, b) { return Number(matchMetadata(a).order || 1) - Number(matchMetadata(b).order || 1); });
+    if (!roundMatches.some(function (item) { var metadata = matchMetadata(item); return metadata.walkover && metadata.walkover.eliminationAward; })) return;
+    roundMatches = roundMatches.sort(function (a, b) {
+      var aAutomatic = Boolean(matchMetadata(a).walkover && matchMetadata(a).walkover.eliminationAward);
+      var bAutomatic = Boolean(matchMetadata(b).walkover && matchMetadata(b).walkover.eliminationAward);
+      return Number(bAutomatic) - Number(aAutomatic) || Number(matchMetadata(a).order || 1) - Number(matchMetadata(b).order || 1);
+    });
+    var start = roundMatches.filter(function (item) { var metadata = matchMetadata(item); return !(metadata.walkover && metadata.walkover.eliminationAward); }).map(function (item) { return formatMatchTime(item.hora); }).find(function (time) { return Boolean(time); });
+    if (!start) return;
+    var playableIndex = 0;
+    roundMatches.forEach(function (item, index) {
+      var metadata = matchMetadata(item);
+      var automatic = metadata.walkover && metadata.walkover.eliminationAward;
+      metadata.order = index + 1;
+      var time = automatic || (volleyball && playableIndex > 0) ? '' : addMinutesToMatchTime(start, interval * playableIndex);
+      if (!automatic) playableIndex += 1;
+      updateSheetRecord(SHEETS.MATCHES, item.id, { hora: time, observaciones: JSON.stringify(metadata), updated_at: nowIso() });
+    });
+  });
+}
+
+function addMinutesToMatchTime(time, minutes) {
+  var parts = String(time).split(':').map(Number);
+  var total = parts[0] * 60 + parts[1] + minutes;
+  return String(Math.floor(total / 60) % 24).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
 }
 
 function lockMatchRound(current) {

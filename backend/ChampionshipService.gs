@@ -1,6 +1,7 @@
 var ChampionshipService = {
   get: function (context) {
     var params = context.params || {};
+    if (params.summaryId) return getChampionshipSummary(params.summaryId);
     var items = listSheetRecords(SHEETS.CHAMPIONSHIPS).filter(function (item) {
       if (params.status) return String(item.estado) === String(params.status);
       return String(item.estado) !== 'INACTIVE';
@@ -49,6 +50,16 @@ var ChampionshipService = {
     }));
   }
 };
+
+function getChampionshipSummary(championshipId) {
+  var id = sanitizeText(championshipId || '');
+  if (!validateUuid(id)) throw appError('VALIDATION_ERROR', 'El campeonato seleccionado no es válido.', 400);
+  var championshipRecord = listSheetRecords(SHEETS.CHAMPIONSHIPS).find(function (item) { return String(item.id) === id && String(item.estado) !== 'INACTIVE'; });
+  if (!championshipRecord) throw appError('NOT_FOUND', 'El campeonato seleccionado no existe.', 404);
+  var disciplines = listSheetRecords(SHEETS.DISCIPLINES).filter(function (item) { return String(item.campeonato_id) === id && String(item.estado) !== 'INACTIVE'; }).map(toDisciplineResponse);
+  var teams = listSheetRecords(SHEETS.TEAMS).filter(function (item) { return String(item.campeonato_id) === id && String(item.estado) !== 'INACTIVE'; }).map(toTeamResponse);
+  return { championship: toChampionshipResponse(championshipRecord), disciplines: disciplines, teams: teams };
+}
 
 function normalizeChampionshipInput(body, partial) {
   function value(apiName, sheetName) {
