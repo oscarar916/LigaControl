@@ -92,8 +92,8 @@ function table(headers, rows, emptyText) {
 function renderStandings() {
   const standingsRows = standings();
   const showGoalColumns = !isVolley();
-  const rows = standingsRows.map((item, index) => `<tr class="${standingsRows.length > 8 && index < 8 ? 'qualified-row ' : ''}${standingsRows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''}"><td><strong>${index + 1}</strong></td><td><strong>${esc(item.team.name)}</strong>${item.team.status === 'ELIMINATED' ? '<span class="badge eliminated-badge">Eliminado · 2 W.O.</span>' : ''}</td><td>${item.pj}</td><td>${item.pg}</td>${isVolley() ? '' : `<td>${item.pe}</td>`}<td>${item.pp}</td>${showGoalColumns ? `<td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td>` : ''}<td><strong>${item.pts}</strong></td></tr>`);
-  return table(['Pos.', 'Equipo', 'PJ', 'PG', ...(isVolley() ? [] : ['PE']), 'PP', ...(showGoalColumns ? ['GF', 'GC', 'DG'] : []), 'PTS'], rows, 'Todavía no hay equipos registrados.');
+  const rows = standingsRows.map((item, index) => `<tr class="${standingsRows.length > 8 && index < 8 ? 'qualified-row ' : ''}${standingsRows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''}"><td><strong>${index + 1}</strong></td><td><strong>${esc(item.team.name)}</strong>${item.team.status === 'ELIMINATED' ? '<span class="badge eliminated-badge">Eliminado · 2 W.O.</span>' : ''}</td><td class="points-column"><strong>${item.pts}</strong></td><td>${item.pj}</td><td>${item.pg}</td>${isVolley() ? '' : `<td>${item.pe}</td>`}<td>${item.pp}</td>${showGoalColumns ? `<td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td>` : ''}</tr>`);
+  return table(['Pos.', 'Equipo', 'PTS', 'PJ', 'PG', ...(isVolley() ? [] : ['PE']), 'PP', ...(showGoalColumns ? ['GF', 'GC', 'DG'] : [])], rows, 'Todavía no hay equipos registrados.');
 }
 
 function renderScorers() {

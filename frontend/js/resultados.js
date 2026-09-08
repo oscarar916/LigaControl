@@ -126,13 +126,13 @@ function renderStandings() {
   const rows = standings();
   const showGoalColumns = !isVolley();
   document.querySelector('#standings-view .section-heading .muted').textContent = isVolley() ? '3 puntos por victoria y 0 por derrota.' : '3 puntos por victoria, 1 por empate y 0 por derrota.';
-  document.querySelector('#standings-view thead tr').innerHTML = `<th>Pos.</th><th>Equipo</th><th>PJ</th><th>PG</th>${isVolley() ? '' : '<th>PE</th>'}<th>PP</th>${showGoalColumns ? '<th>GF</th><th>GC</th><th>DG</th>' : ''}<th>PTS</th>`;
+  document.querySelector('#standings-view thead tr').innerHTML = `<th>Pos.</th><th>Equipo</th><th class="points-column">PTS</th><th>PJ</th><th>PG</th>${isVolley() ? '' : '<th>PE</th>'}<th>PP</th>${showGoalColumns ? '<th>GF</th><th>GC</th><th>DG</th>' : ''}`;
   standingsBody.innerHTML = rows.map((item, index) => {
     const classes = [
       rows.length > 8 && index < 8 ? 'qualified-row' : '',
       rows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''
     ].filter(Boolean).join(' ');
-    return `<tr class="${classes}"><td><strong>${index + 1}</strong></td><td>${esc(item.team.name)}${item.team.status === 'ELIMINATED' ? '<span class="badge eliminated-badge">Eliminado · 2 W.O.</span>' : ''}</td><td>${item.pj}</td><td>${item.pg}</td>${isVolley() ? '' : `<td>${item.pe}</td>`}<td>${item.pp}</td>${showGoalColumns ? `<td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td>` : ''}<td><strong>${item.pts}</strong></td></tr>`;
+    return `<tr class="${classes}"><td><strong>${index + 1}</strong></td><td>${esc(item.team.name)}${item.team.status === 'ELIMINATED' ? '<span class="badge eliminated-badge">Eliminado · 2 W.O.</span>' : ''}</td><td class="points-column"><strong>${item.pts}</strong></td><td>${item.pj}</td><td>${item.pg}</td>${isVolley() ? '' : `<td>${item.pe}</td>`}<td>${item.pp}</td>${showGoalColumns ? `<td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td>` : ''}</tr>`;
   }).join('');
 }
 
