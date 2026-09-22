@@ -155,6 +155,29 @@ function renderCards() {
   }).join('')}</div>`;
 }
 
+function reportMatchOrder(a, b) {
+  if (Boolean(a.automaticWalkover) !== Boolean(b.automaticWalkover)) return a.automaticWalkover ? -1 : 1;
+  const timeA = String(a.time || '').slice(0, 5); const timeB = String(b.time || '').slice(0, 5);
+  if (timeA && timeB && timeA !== timeB) return timeA.localeCompare(timeB);
+  if (timeA !== timeB) return timeA ? -1 : 1;
+  return Number(a.order || 0) - Number(b.order || 0);
+}
+function renderMatchesByRound() {
+  const rounds = [...new Set(matches.map((match) => Number(match.round)))].sort((a, b) => a - b);
+  if (!rounds.length) return '<div class="empty-state compact">Todavía no hay partidos programados.</div>';
+  return `<div class="report-match-rounds">${rounds.map((round) => {
+    const items = matches.filter((match) => Number(match.round) === round).sort(reportMatchOrder);
+    const first = items.find((match) => match.date) || items[0];
+    const rows = items.map((match, index) => {
+      const finished = match.closed || match.status === 'FINISHED' || match.roundLocked;
+      const score = finished && match.homeScore !== '' && match.awayScore !== '' ? `${match.homeScore} – ${match.awayScore}${match.isWalkover ? ' W.O.' : ''}` : 'VS';
+      const time = match.automaticWalkover ? 'W.O. reglamentario' : String(match.time || '').slice(0, 5) || (isVolley() && index > 0 ? 'A continuación' : 'Hora pendiente');
+      return `<div class="report-match-row"><strong class="report-match-order">${index + 1}.</strong><span class="report-match-time">${esc(time)}</span><span class="report-match-team home">${esc(teamName(match.homeId))}</span><b class="report-match-score">${esc(score)}</b><span class="report-match-team">${esc(teamName(match.awayId))}</span><em>${finished ? 'Finalizado' : 'Programado'}</em></div>`;
+    }).join('');
+    return `<section class="report-round-card"><header><h3>Fecha ${round}</h3><span>${first?.date ? esc(String(first.date).slice(0, 10)) : 'Fecha pendiente'}${first?.venue ? ` · ${esc(first.venue)}` : ''}</span></header>${rows}</section>`;
+  }).join('')}</div>`;
+}
+
 function renderRosters() {
   return `<div class="roster-report-grid">${teams.map((team) => {
     const roster = players.filter((player) => player.teamId === team.id && player.status !== 'INACTIVE').sort((a, b) => Number(a.shirtNumber || 999) - Number(b.shirtNumber || 999) || a.fullName.localeCompare(b.fullName));
@@ -164,6 +187,7 @@ function renderRosters() {
 
 const reportDefinitions = {
   standings: { title: 'Tabla de posiciones', description: 'Clasificación actual según los resultados cerrados.', render: renderStandings },
+  matches: { title: 'Partidos por fecha', description: 'Programación y resultados agrupados por cada fecha.', render: renderMatchesByRound },
   scorers: { title: 'Tabla de goleadores', description: 'Goles registrados individualmente en las actas digitales.', render: renderScorers },
   cards: { title: 'Tarjetas y sanciones', description: 'Resumen disciplinario y económico por jugador.', render: renderCards },
   rosters: { title: 'Planteles inscritos', description: 'Relación de jugadores activos agrupados por equipo.', render: renderRosters }
