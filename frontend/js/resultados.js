@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from './api.js';
+import { apiDelete, apiGet, apiGetFresh, apiPost, apiPut } from './api.js';
 
 const championshipId = localStorage.getItem('ligaControlChampionshipId') || '';
 const disciplineId = localStorage.getItem('ligaControlDisciplineId') || '';
@@ -11,6 +11,7 @@ const notesForm = document.querySelector('#minute-notes-form');
 const quickPlayerModal = document.querySelector('#quick-player-modal');
 const quickPlayerForm = document.querySelector('#quick-player-form');
 let teams = [], matches = [], players = [], events = [], minutes = [], sanctions = [], payments = [], currentDiscipline = null, activeMatch, lineupDraft = { home: [], away: [] };
+let currentRoundNumber = 0;
 
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
 const teamName = id => teams.find(team => team.id === id)?.name || 'Equipo';
@@ -20,6 +21,29 @@ const playerRosterLabel = player => {
   const shirtNumber = String(player?.shirtNumber ?? '').trim();
   return shirtNumber ? `${shirtNumber} - ${player.fullName}` : player.fullName;
 };
+
+function calendarRound() {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  const grouped = [...new Set(matches.map(match => Number(match.round)))].map(round => {
+    const roundMatches = matches.filter(match => Number(match.round) === round);
+    const dated = roundMatches.map(match => new Date(`${String(match.date || '').slice(0, 10)}T00:00:00`)).filter(date => !Number.isNaN(date.getTime()));
+    return { round, date: dated.length ? new Date(Math.min(...dated.map(date => date.getTime()))) : null, open: roundMatches.some(match => !match.roundLocked) };
+  });
+  const pendingPast = grouped.filter(item => item.open && item.date && item.date <= today).sort((a, b) => b.date - a.date);
+  if (pendingPast.length) return pendingPast[0].round;
+  const upcoming = grouped.filter(item => item.open && item.date && item.date > today).sort((a, b) => a.date - b.date);
+  if (upcoming.length) return upcoming[0].round;
+  const latestDated = grouped.filter(item => item.date && item.date <= today).sort((a, b) => b.date - a.date);
+  return latestDated[0]?.round || grouped[0]?.round || 0;
+}
+
+function updateCurrentRoundHint() {
+  const hint = document.querySelector('#current-round-hint');
+  const selected = Number(roundSelect.value);
+  hint.textContent = currentRoundNumber ? (selected === currentRoundNumber ? `Fecha ${currentRoundNumber} · jornada actual` : `Jornada actual: Fecha ${currentRoundNumber}`) : '';
+  hint.className = `current-round-hint${selected === currentRoundNumber ? ' active' : ''}`;
+}
 
 function matchWinnerId(match) {
   if (match.homeScore === '' || match.awayScore === '') return '';
@@ -155,7 +179,7 @@ function renderSanctions() {
     const player = players.find(item => item.id === sanction.playerId);
     const payment = paymentFor(sanction.id);
     const paid = payment?.status === 'PAID';
-    const label = sanction.type === 'YELLOW_CARD' ? '🟨 Amarilla' : sanction.type === 'RED_CARD' ? '🟥 Roja directa' : '⛔ Expulsión';
+    const label = sanction.type === 'YELLOW_CARD' ? '🟨 Amarilla' : sanction.type === 'DOUBLE_YELLOW' ? '🟨🟥 Doble amarilla' : sanction.type === 'RED_CARD' ? '🟥 Roja directa' : '⛔ Expulsión';
     return `<tr><td><strong>${esc(player?.fullName || 'Jugador')}</strong></td><td>${esc(teamName(sanction.teamId))}</td><td>${label}</td><td class="suspension-cell">${suspensionText(sanction)}</td><td><strong>S/ ${Number(sanction.amount).toFixed(2)}</strong></td><td><span class="badge ${paid ? 'paid-badge' : 'pending-badge'}">${paid ? 'Pagado' : 'Pendiente'}</span></td><td>${payment && !paid ? `<button class="secondary-button compact-button" type="button" data-mark-paid="${payment.id}">Marcar pagado</button>` : ''}</td></tr>`;
   }).join('') : '<tr><td colspan="7" class="empty-state">No hay sanciones registradas.</td></tr>';
   const pending = payments.filter(payment => payment.status === 'PENDING').reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
@@ -173,6 +197,15 @@ async function refreshSanctions() {
 
 function activeRoster(teamId) {
   return players.filter(player => player.teamId === teamId && player.status !== 'INACTIVE');
+}
+
+async function refreshTeamRoster(teamId) {
+  const response = await apiGetFresh('/api/players', { teamId });
+  const refreshed = response.data.items || [];
+  players = players.filter(player => player.teamId !== teamId).concat(refreshed);
+  renderRosters();
+  updateWalkoverScorer();
+  return refreshed;
 }
 
 function updateWalkoverScorer() {
@@ -201,6 +234,33 @@ function eventCount(playerId, type) {
   return matchEvents().filter(event => event.playerId === playerId && event.type === type).length;
 }
 
+function goalTotalsFromEvents() {
+  const totals = { home: 0, away: 0 };
+  matchEvents().forEach(event => {
+    if (event.type === 'GOAL') {
+      if (event.teamId === activeMatch.homeId) totals.home += 1;
+      if (event.teamId === activeMatch.awayId) totals.away += 1;
+    } else if (event.type === 'OWN_GOAL') {
+      if (event.teamId === activeMatch.homeId) totals.away += 1;
+      if (event.teamId === activeMatch.awayId) totals.home += 1;
+    }
+  });
+  return totals;
+}
+
+function syncScoreFromEvents(animate = false) {
+  if (!activeMatch || activeMatch.isWalkover) return;
+  const totals = goalTotalsFromEvents();
+  const fields = [scoreForm.elements.homeScore, scoreForm.elements.awayScore];
+  fields[0].value = totals.home;
+  fields[1].value = totals.away;
+  if (animate) fields.forEach(field => {
+    field.classList.remove('score-updated');
+    void field.offsetWidth;
+    field.classList.add('score-updated');
+  });
+}
+
 function lineupSide(teamId) { return teamId === activeMatch.homeId ? 'home' : 'away'; }
 function lineupCount(teamId, role) { return lineupDraft[lineupSide(teamId)].filter(item => item.role === role).length; }
 function normalizeDraft(items) {
@@ -223,7 +283,9 @@ function quickButton(player, teamId, type, cssClass, label) {
 function renderRosters() {
   document.querySelector('#match-rosters').innerHTML = [activeMatch.homeId, activeMatch.awayId].map(teamId => {
     const roster = activeRoster(teamId);
-    const rows = [['TITULAR', 6, 'Titular'], ['SUPLENTE', 4, 'Suplente']].flatMap(([role, count, label]) => Array.from({ length: count }, (_, index) => {
+    const selectedSubstituteSlots = lineupDraft[lineupSide(teamId)].filter(item => item.role === 'SUPLENTE').map(item => Number(item.slot) || 0);
+    const visibleSubstitutes = Math.min(4, Math.max(1, (selectedSubstituteSlots.length ? Math.max(...selectedSubstituteSlots) : 0) + 1));
+    const rows = [['TITULAR', 6, 'Titular'], ['SUPLENTE', visibleSubstitutes, 'Suplente']].flatMap(([role, count, label]) => Array.from({ length: count }, (_, index) => {
       const slot = index + 1;
       const playerId = selectedAt(teamId, role, slot);
       const player = roster.find(item => item.id === playerId);
@@ -231,7 +293,7 @@ function renderRosters() {
       return `<tr class="lineup-slot-row ${role === 'TITULAR' ? 'starter-row' : 'substitute-row'}"><td class="slot-label"><span>${shirtLabel}</span><small>${label}</small></td><td><select class="player-slot-select" data-lineup-role="${role}" data-lineup-slot="${slot}" data-lineup-team="${teamId}" aria-label="${label} ${slot}">${playerOptions(teamId, playerId)}</select></td><td>${player ? quickButton(player, teamId, 'GOAL', 'goal-event', 'gol') : '—'}</td><td>${player ? quickButton(player, teamId, 'YELLOW_CARD', 'yellow-card', 'tarjeta amarilla') : '—'}</td><td>${player ? quickButton(player, teamId, 'RED_CARD', 'red-card', 'tarjeta roja') : '—'}</td></tr>`;
     })).join('');
     const content = roster.length ? `<table class="acta-roster-table lineup-table"><thead><tr><th>N.º</th><th>Jugador</th><th>Gol</th><th title="Tarjeta amarilla">T.A.</th><th title="Tarjeta roja">T.R.</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty-roster"><strong>Sin jugadores registrados</strong><p>Agrega el primer jugador sin salir del acta.</p></div>`;
-    return `<section class="sheet-team"><div class="sheet-team-heading"><h3>${esc(teamName(teamId))}</h3><div class="sheet-team-tools"><span>${lineupCount(teamId, 'TITULAR')}/6 · ${lineupCount(teamId, 'SUPLENTE')}/4</span><button class="secondary-button compact-button" type="button" data-add-player="${teamId}">+ Nuevo jugador</button></div></div>${content}</section>`;
+    return `<section class="sheet-team"><div class="sheet-team-heading"><h3>${esc(teamName(teamId))}</h3><div class="sheet-team-tools"><span class="lineup-count">${lineupCount(teamId, 'TITULAR')} titulares · ${lineupCount(teamId, 'SUPLENTE')} suplentes</span><button class="secondary-button compact-button" type="button" data-refresh-roster="${teamId}" title="Actualizar plantel">Actualizar</button><button class="secondary-button compact-button" type="button" data-add-player="${teamId}" title="Registrar nuevo jugador">+ Jugador</button></div></div>${content}</section>`;
   }).join('');
 }
 
@@ -250,6 +312,7 @@ function closeQuickPlayer() {
 
 function openSheet(match) {
   activeMatch = match;
+  const storedScore = { home: match.homeScore, away: match.awayScore };
   const savedMinute = minutes.find(item => item.matchId === match.id);
   lineupDraft = { home: normalizeDraft(savedMinute?.homeLineup), away: normalizeDraft(savedMinute?.awayLineup) };
   document.querySelector('#match-sheet-title').textContent = `${teamName(match.homeId)} vs. ${teamName(match.awayId)}`;
@@ -263,6 +326,7 @@ function openSheet(match) {
   document.querySelector('#score-away-name').textContent = teamName(match.awayId);
   scoreForm.elements.homeScore.value = match.homeScore;
   scoreForm.elements.awayScore.value = match.awayScore;
+  syncScoreFromEvents();
   document.querySelector('#walkover-team').innerHTML = `<option value="">Seleccionar equipo</option><option value="${match.homeId}">${esc(teamName(match.homeId))}</option><option value="${match.awayId}">${esc(teamName(match.awayId))}</option>`;
   document.querySelector('#walkover-team').value = match.walkoverTeamId || '';
   updateWalkoverScorer();
@@ -271,7 +335,13 @@ function openSheet(match) {
   document.querySelector('#final-score-status').textContent = '';
   modal.querySelectorAll('input, select, textarea, button').forEach(control => { if (control.id !== 'close-match-sheet') control.disabled = Boolean(match.roundLocked); });
   if (!match.roundLocked) document.querySelectorAll('[data-remove-event]').forEach(button => { button.disabled = eventCount(button.dataset.playerId, button.dataset.removeEvent) === 0; });
-  if (match.roundLocked) document.querySelector('#final-score-status').textContent = 'Fecha cerrada: acta disponible solo para consulta.';
+  if (match.roundLocked) {
+    const calculated = goalTotalsFromEvents();
+    const differs = !match.isWalkover && (Number(storedScore.home || 0) !== calculated.home || Number(storedScore.away || 0) !== calculated.away);
+    document.querySelector('#final-score-status').textContent = differs
+      ? `El acta suma ${calculated.home}–${calculated.away}, pero el resultado oficial guardado es ${storedScore.home || 0}–${storedScore.away || 0}. Reabre la fecha para corregirlo y vuelve a guardar el partido.`
+      : 'Fecha cerrada: acta disponible solo para consulta.';
+  }
   modal.showModal();
 }
 
@@ -298,7 +368,10 @@ async function load() {
     document.querySelector('#results-context').textContent = `${championship?.name || ''} · ${discipline?.name || ''}`;
     const rounds = [...new Set(matches.map(item => item.round))].sort((a, b) => a - b);
     roundSelect.innerHTML = rounds.map(round => `<option value="${round}">Fecha ${round}</option>`).join('');
+    currentRoundNumber = calendarRound();
     if (rounds.some(round => String(round) === selectedRound)) roundSelect.value = selectedRound;
+    else if (currentRoundNumber) roundSelect.value = String(currentRoundNumber);
+    updateCurrentRoundHint();
     renderMatches(); renderStandings(); renderSanctions();
   } catch (error) {
     matchList.innerHTML = `<p class="error-message">${esc(error.message)}</p>`;
@@ -340,6 +413,23 @@ document.querySelector('#match-rosters').addEventListener('change', event => {
   renderRosters();
 });
 document.querySelector('#match-rosters').addEventListener('click', async event => {
+  const refreshRosterButton = event.target.closest('[data-refresh-roster]');
+  if (refreshRosterButton) {
+    refreshRosterButton.disabled = true;
+    const lineupStatus = document.querySelector('#lineup-status');
+    lineupStatus.textContent = 'Actualizando plantel...';
+    lineupStatus.className = 'form-status';
+    try {
+      const roster = await refreshTeamRoster(refreshRosterButton.dataset.refreshRoster);
+      lineupStatus.textContent = `Plantel actualizado: ${roster.length} jugador(es) disponibles.`;
+      lineupStatus.className = 'form-status success-message';
+    } catch (error) {
+      lineupStatus.textContent = error.message;
+      lineupStatus.className = 'form-status error-message';
+      refreshRosterButton.disabled = false;
+    }
+    return;
+  }
   const addPlayerButton = event.target.closest('[data-add-player]');
   if (addPlayerButton) {
     openQuickPlayer(addPlayerButton.dataset.addPlayer);
@@ -362,11 +452,7 @@ document.querySelector('#match-rosters').addEventListener('click', async event =
       await apiDelete('/api/events', { id: removable.id });
       events = events.filter(item => item.id !== removable.id);
       if (removeButton.dataset.removeEvent === 'GOAL') {
-        const scoreField = removeButton.dataset.teamId === activeMatch.homeId ? scoreForm.elements.homeScore : scoreForm.elements.awayScore;
-        scoreField.value = Math.max(0, Number(scoreField.value || 0) - 1);
-        scoreField.classList.remove('score-updated');
-        void scoreField.offsetWidth;
-        scoreField.classList.add('score-updated');
+        syncScoreFromEvents(true);
       }
       renderRosters();
       await refreshSanctions();
@@ -383,11 +469,7 @@ document.querySelector('#match-rosters').addEventListener('click', async event =
     const response = await apiPost('/api/events', { matchId: activeMatch.id, teamId: button.dataset.teamId, playerId: button.dataset.playerId, type: button.dataset.quickEvent, minute: '' });
     events.push(response.data);
     if (button.dataset.quickEvent === 'GOAL') {
-      const scoreField = button.dataset.teamId === activeMatch.homeId ? scoreForm.elements.homeScore : scoreForm.elements.awayScore;
-      scoreField.value = Number(scoreField.value || 0) + 1;
-      scoreField.classList.remove('score-updated');
-      void scoreField.offsetWidth;
-      scoreField.classList.add('score-updated');
+      syncScoreFromEvents(true);
     }
     renderRosters();
     await refreshSanctions();
@@ -439,6 +521,7 @@ notesForm.addEventListener('submit', event => event.preventDefault());
 scoreForm.addEventListener('submit', async event => {
   event.preventDefault();
   const button = scoreForm.querySelector('button[type="submit"]');
+  syncScoreFromEvents();
   const values = Object.fromEntries(new FormData(scoreForm));
   button.disabled = true;
   try {
@@ -497,7 +580,13 @@ document.querySelector('#walkover-team').addEventListener('change', () => {
   document.querySelector('#walkover-status').textContent = '';
 });
 document.querySelector('#close-match-sheet').addEventListener('click', () => modal.close());
-roundSelect.addEventListener('change', renderMatches);
+roundSelect.addEventListener('change', () => { updateCurrentRoundHint(); renderMatches(); });
+document.querySelector('#go-current-round').addEventListener('click', () => {
+  if (!currentRoundNumber) return;
+  roundSelect.value = String(currentRoundNumber);
+  updateCurrentRoundHint();
+  renderMatches();
+});
 document.querySelector('#lock-result-round').addEventListener('click', async event => {
   const round = Number(roundSelect.value);
   const roundMatches = matches.filter(match => match.round === round);

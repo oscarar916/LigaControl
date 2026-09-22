@@ -20,22 +20,38 @@ var SanctionService = {
 function createSanctionForEvent(eventRecord, match) {
   if (['YELLOW_CARD', 'RED_CARD'].indexOf(String(eventRecord.tipo)) === -1) return null;
   var settings = getSanctionSettings(String(match.campeonato_id), String(match.disciplina_id));
+  var yellowEventsInMatch = eventRecord.tipo === 'YELLOW_CARD' ? listSheetRecords(SHEETS.EVENTS).filter(function (item) {
+    return String(item.partido_id) === String(eventRecord.partido_id) && String(item.jugador_id) === String(eventRecord.jugador_id) && String(item.tipo) === 'YELLOW_CARD' && String(item.estado) !== 'INACTIVE';
+  }).sort(function (a, b) { return String(a.created_at || '').localeCompare(String(b.created_at || '')); }) : [];
+  var doubleYellow = yellowEventsInMatch.length >= 2;
+  var doubleYellowEvent = doubleYellow ? yellowEventsInMatch[yellowEventsInMatch.length - 1] : null;
+  if (doubleYellow && String(eventRecord.id) !== String(doubleYellowEvent.id)) {
+    deactivateSanctionForEvent(eventRecord.id);
+    return null;
+  }
   var matches = listSheetRecords(SHEETS.MATCHES), playerCards = listSheetRecords(SHEETS.EVENTS).filter(function (x) { if (String(x.jugador_id) !== String(eventRecord.jugador_id) || String(x.tipo) !== String(eventRecord.tipo) || String(x.estado) === 'INACTIVE') return false; var m = matches.find(function (candidate) { return String(candidate.id) === String(x.partido_id); }); return m && String(m.campeonato_id) === String(match.campeonato_id) && String(m.disciplina_id) === String(match.disciplina_id); }).sort(function (a, b) { return String(a.created_at || '').localeCompare(String(b.created_at || '')); });
   var eventIndex = playerCards.findIndex(function (x) { return String(x.id) === String(eventRecord.id); });
   var yellow = eventRecord.tipo === 'YELLOW_CARD';
   var count = yellow ? consecutiveYellowRounds(match, playerCards, matches) : eventIndex >= 0 ? eventIndex + 1 : playerCards.length;
-  var suspension = yellow && count % Number(settings.YELLOW_CARDS_FOR_SUSPENSION || 2) === 0 ? Number(settings.YELLOW_SUSPENSION_MATCHES || 1) : yellow ? 0 : Number(settings.RED_SUSPENSION_MATCHES || 2), expelled = !yellow && count >= Number(settings.RED_CARDS_FOR_EXPULSION || 2), amount = Number(yellow ? settings.YELLOW_CARD_COST : settings.RED_CARD_COST), timestamp = nowIso();
-  var reason = expelled ? 'Expulsión por acumulación de tarjetas rojas' : yellow && suspension ? 'Acumulación de tarjetas amarillas' : yellow ? 'Tarjeta amarilla' : 'Tarjeta roja directa';
-  var metadata = yellow ? { consecutiveCards: count } : { accumulatedCards: count };
+  var suspension = doubleYellow ? Number(settings.YELLOW_SUSPENSION_MATCHES || 1) : yellow && count % Number(settings.YELLOW_CARDS_FOR_SUSPENSION || 2) === 0 ? Number(settings.YELLOW_SUSPENSION_MATCHES || 1) : yellow ? 0 : Number(settings.RED_SUSPENSION_MATCHES || 2), expelled = !yellow && count >= Number(settings.RED_CARDS_FOR_EXPULSION || 2), amount = doubleYellow ? Number(settings.YELLOW_CARD_COST) * 2 : Number(yellow ? settings.YELLOW_CARD_COST : settings.RED_CARD_COST), timestamp = nowIso();
+  var reason = doubleYellow ? 'Expulsión por doble tarjeta amarilla' : expelled ? 'Expulsión por acumulación de tarjetas rojas' : yellow && suspension ? 'Acumulación de tarjetas amarillas' : yellow ? 'Tarjeta amarilla' : 'Tarjeta roja directa';
+  var metadata = doubleYellow ? { cardsInMatch: 2, suspensionRound: Number(match.jornada || 0) + 1 } : yellow ? { consecutiveCards: count } : { accumulatedCards: count };
   var duplicate = listSheetRecords(SHEETS.SANCTIONS).find(function (x) { return String(x.evento_id) === String(eventRecord.id) && String(x.estado) !== 'INACTIVE'; });
   if (duplicate) {
-    var effectiveType = expelled ? 'EXPULSION' : eventRecord.tipo;
+    var effectiveType = doubleYellow ? 'DOUBLE_YELLOW' : expelled ? 'EXPULSION' : eventRecord.tipo;
     var unchanged = String(duplicate.tipo) === String(effectiveType) && String(duplicate.motivo) === String(reason) && Number(duplicate.fechas_suspension || 0) === Number(suspension) && Number(duplicate.monto || 0) === Number(amount);
-    if (unchanged) return duplicate;
-    return updateSheetRecord(SHEETS.SANCTIONS, duplicate.id, { tipo: effectiveType, motivo: reason, fechas_suspension: suspension, monto: amount, observaciones: JSON.stringify(metadata), updated_at: timestamp });
+    if (unchanged) { syncPaymentAmount(duplicate.id, amount); return duplicate; }
+    var updated = updateSheetRecord(SHEETS.SANCTIONS, duplicate.id, { tipo: effectiveType, motivo: reason, fechas_suspension: suspension, monto: amount, observaciones: JSON.stringify(metadata), updated_at: timestamp });
+    syncPaymentAmount(updated.id, amount);
+    return updated;
   }
-  var record = { id: generateUuid(), campeonato_id: match.campeonato_id, evento_id: eventRecord.id, equipo_id: eventRecord.equipo_id, jugador_id: eventRecord.jugador_id, tipo: expelled ? 'EXPULSION' : eventRecord.tipo, motivo: reason, fechas_suspension: suspension, monto: amount, fecha_inicio: match.fecha || '', fecha_fin: '', estado: 'ACTIVE', created_at: timestamp, updated_at: timestamp, observaciones: JSON.stringify(metadata) };
+  var record = { id: generateUuid(), campeonato_id: match.campeonato_id, evento_id: eventRecord.id, equipo_id: eventRecord.equipo_id, jugador_id: eventRecord.jugador_id, tipo: doubleYellow ? 'DOUBLE_YELLOW' : expelled ? 'EXPULSION' : eventRecord.tipo, motivo: reason, fechas_suspension: suspension, monto: amount, fecha_inicio: match.fecha || '', fecha_fin: '', estado: 'ACTIVE', created_at: timestamp, updated_at: timestamp, observaciones: JSON.stringify(metadata) };
   appendSheetRecord(SHEETS.SANCTIONS, record); createPendingPayment(record); return record;
+}
+function syncPaymentAmount(sanctionId, amount) {
+  listSheetRecords(SHEETS.PAYMENTS).filter(function (payment) { return String(payment.sancion_id) === String(sanctionId) && String(payment.estado) !== 'INACTIVE'; }).forEach(function (payment) {
+    if (Number(payment.monto || 0) !== Number(amount)) updateSheetRecord(SHEETS.PAYMENTS, payment.id, { monto: amount, updated_at: nowIso() });
+  });
 }
 function consecutiveYellowRounds(currentMatch, playerCards, matches) {
   var currentRound = Number(currentMatch.jornada || 0);

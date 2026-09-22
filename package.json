@@ -5,6 +5,7 @@
   "description": "Plataforma de gestión de campeonatos deportivos.",
   "scripts": {
     "start": "http-server . -o /frontend/index.html -c-1",
+    "serve": "http-server . -c-1",
     "validate": "node scripts/validate-structure.js",
     "format": "prettier --write .",
     "test": "node --test",

@@ -33,6 +33,11 @@ var EventService = {
     if (match && isMatchLocked(match)) throw appError('CONFLICT', 'La fecha está cerrada y sus incidencias ya no se pueden editar.', 409);
     var result = updateSheetRecord(SHEETS.EVENTS, id, { estado: 'INACTIVE', updated_at: nowIso() });
     deactivateSanctionForEvent(id);
+    if (current && String(current.tipo) === 'YELLOW_CARD' && match) {
+      listSheetRecords(SHEETS.EVENTS).filter(function (item) {
+        return String(item.partido_id) === String(current.partido_id) && String(item.jugador_id) === String(current.jugador_id) && String(item.tipo) === 'YELLOW_CARD' && String(item.estado) !== 'INACTIVE';
+      }).forEach(function (item) { createSanctionForEvent(item, match); });
+    }
     return toEventResponse(result);
   }
 };

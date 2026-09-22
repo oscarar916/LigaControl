@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './api.js';
+import { apiGet, apiGetFresh, apiPost } from './api.js';
 
 const form = document.querySelector('#championship-form');
 const list = document.querySelector('#championship-list');
@@ -13,6 +13,7 @@ const addDisciplineButton = document.querySelector('#add-discipline-field');
 let championships = [];
 let disciplines = [];
 let selectedChampionshipId = localStorage.getItem('ligaControlChampionshipId') || '';
+const dashboardCacheKey = 'ligaControlDashboardData';
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
@@ -64,16 +65,38 @@ function renderChampionships() {
   </div>`;
 }
 
-async function loadData() {
-  list.innerHTML = '<p class="muted">Cargando…</p>';
+async function loadData(forceFresh = false) {
+  let renderedCached = false;
+  if (!forceFresh) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(dashboardCacheKey) || 'null');
+      if (cached) {
+        championships = cached.championships || [];
+        disciplines = cached.disciplines || [];
+        renderChampionships();
+        renderedCached = true;
+      }
+    } catch (error) { localStorage.removeItem(dashboardCacheKey); }
+  }
+  if (!renderedCached) list.innerHTML = '<p class="muted">Cargando campeonatos…</p>';
   try {
-    const [championshipResponse, disciplineResponse] = await Promise.all([
-      apiGet('/api/championships'), apiGet('/api/disciplines')
-    ]);
+    const getter = forceFresh ? apiGetFresh : apiGet;
+    const championshipRequest = getter('/api/championships');
+    const disciplineRequest = getter('/api/disciplines')
+      .then((response) => ({ response }))
+      .catch((error) => ({ error }));
+    const championshipResponse = await championshipRequest;
     championships = championshipResponse.data.items.filter((item) => item.status !== 'INACTIVE');
-    disciplines = disciplineResponse.data.items;
     renderChampionships();
-  } catch (error) { list.innerHTML = `<div class="error-message">${escapeHtml(error.message)}</div>`; }
+    const disciplineResult = await disciplineRequest;
+    if (disciplineResult.response) {
+      disciplines = disciplineResult.response.data.items;
+      renderChampionships();
+    }
+    try { localStorage.setItem(dashboardCacheKey, JSON.stringify({ championships, disciplines })); } catch (error) { /* La pantalla funciona sin caché persistente. */ }
+  } catch (error) {
+    if (!renderedCached && !championships.length) list.innerHTML = `<div class="error-message">${escapeHtml(error.message)}</div>`;
+  }
 }
 
 function openModal() {
@@ -146,6 +169,6 @@ disciplineFields?.addEventListener('click', (event) => {
 });
 closeModalButton?.addEventListener('click', closeModal);
 cancelModalButton?.addEventListener('click', closeModal);
-reloadButton?.addEventListener('click', loadData);
+reloadButton?.addEventListener('click', () => loadData(true));
 modal?.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
 loadData();

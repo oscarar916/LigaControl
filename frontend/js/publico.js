@@ -1,5 +1,7 @@
 ﻿import { apiGet } from './api.js';
 
+import { apiGetFresh } from './api.js';
+
 const params = new URLSearchParams(location.search);
 const publicHomeRequested = params.get('home') === '1' || (!params.has('championshipId') && !params.has('disciplineId'));
 let championshipId = publicHomeRequested ? '' : (params.get('championshipId') || localStorage.getItem('ligaControlChampionshipId') || '');
@@ -188,7 +190,7 @@ async function load() {
     if (!championshipId || !disciplineId) throw new Error('Este enlace no identifica un campeonato y deporte válidos.');
     const cached = localStorage.getItem(publicCacheKey());
     if (cached) { try { applyPublicData(JSON.parse(cached)); renderedCached = true; } catch (error) { localStorage.removeItem(publicCacheKey()); } }
-    const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId, publicOnly: true }); const data = response.data || {};
+    const response = await apiGetFresh('/api/results-bootstrap', { championshipId, disciplineId, publicOnly: true }); const data = response.data || {};
     localStorage.setItem(publicCacheKey(), JSON.stringify(data));
     applyPublicData(data);
     if (!params.get('championshipId')) history.replaceState(null, '', `publico.html?championshipId=${encodeURIComponent(championshipId)}&disciplineId=${encodeURIComponent(disciplineId)}`);
