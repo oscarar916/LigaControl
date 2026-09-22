@@ -54,7 +54,17 @@ function standings() {
   return Object.values(table).sort((a, b) => b.pts - a.pts || (b.gf - b.gc) - (a.gf - a.gc) || b.gf - a.gf || a.team.name.localeCompare(b.team.name));
 }
 
-function roundsWith(items) { const values = [...new Set(items.map((match) => match.round))].sort((a, b) => a - b); return values.map((round) => ({ round, matches: items.filter((match) => match.round === round).sort((a, b) => a.order - b.order) })); }
+function publicMatchOrder(a, b) {
+  const administrativeA = Boolean(a.automaticWalkover);
+  const administrativeB = Boolean(b.automaticWalkover);
+  if (administrativeA !== administrativeB) return administrativeA ? -1 : 1;
+  const timeA = String(a.time || '').slice(0, 5);
+  const timeB = String(b.time || '').slice(0, 5);
+  if (timeA && timeB && timeA !== timeB) return timeA.localeCompare(timeB);
+  if (timeA !== timeB) return timeA ? -1 : 1;
+  return Number(a.order || 0) - Number(b.order || 0);
+}
+function roundsWith(items) { const values = [...new Set(items.map((match) => match.round))].sort((a, b) => a - b); return values.map((round) => ({ round, matches: items.filter((match) => match.round === round).sort(publicMatchOrder) })); }
 function roundHasOfficialOrder(round, items, nextPendingRound) { return items.every(played) || (round === nextPendingRound && items.every((match) => match.orderConfirmed)); }
 function officialGoalEvents() {
   const officialMatchIds = new Set(matches.filter(played).map((match) => match.id));
