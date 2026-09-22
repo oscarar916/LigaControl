@@ -16,6 +16,32 @@ const standingsMatches = () => {
   return finished.filter((match) => !match.automaticWalkover || Number(match.round || 0) <= currentRound);
 };
 const paymentFor = (sanctionId) => payments.find((payment) => payment.sanctionId === sanctionId);
+function paymentsForSanction(sanction) {
+  const ids = sanction.sourceSanctionIds || [sanction.id];
+  return payments.filter((payment) => ids.includes(payment.sanctionId));
+}
+function paymentSummary(sanction) {
+  const items = paymentsForSanction(sanction);
+  if (!items.length) return null;
+  return { status: items.every((payment) => payment.status === 'PAID') ? 'PAID' : 'PENDING', amount: items.reduce((sum, payment) => sum + Number(payment.amount || 0), 0), date: items.map((payment) => payment.date).filter(Boolean).sort().at(-1) || '' };
+}
+function mergeDoubleYellowSanctions(items) {
+  const grouped = new Map();
+  items.forEach((sanction) => {
+    const event = events.find((candidate) => candidate.id === sanction.eventId);
+    if (sanction.type !== 'YELLOW_CARD' || !event) return;
+    const key = `${sanction.playerId}:${event.matchId}`;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(sanction);
+  });
+  const consumed = new Set(); const merged = [];
+  grouped.forEach((group) => {
+    if (group.length < 2) return;
+    group.forEach((sanction) => consumed.add(sanction.id));
+    merged.push({ ...group[group.length - 1], type: 'DOUBLE_YELLOW', reason: 'Expulsión por doble tarjeta amarilla', suspensionMatches: Math.max(1, ...group.map((sanction) => Number(sanction.suspensionMatches || 0))), amount: group.reduce((sum, sanction) => sum + Number(sanction.amount || 0), 0), sourceSanctionIds: group.map((sanction) => sanction.id) });
+  });
+  return [...items.filter((sanction) => !consumed.has(sanction.id)), ...merged];
+}
 const isVolley = () => /v[oó]ley|volley/i.test(discipline?.name || '');
 const pendingAmountForSanction = (sanction) => {
   const payment = paymentFor(sanction.id);
@@ -112,25 +138,20 @@ function renderScorers() {
 }
 
 function renderCards() {
-  const cards = eventTotals(['YELLOW_CARD', 'RED_CARD']).sort((a, b) => b.red - a.red || b.yellow - a.yellow || playerName(a.playerId).localeCompare(playerName(b.playerId)));
-  if (!cards.length) return '<div class="empty-state compact">Todavía no hay tarjetas registradas.</div>';
+  const pending = sanctions.filter((sanction) => paymentSummary(sanction)?.status === 'PENDING');
+  if (!pending.length) return '<div class="empty-state compact"><strong>No hay pagos pendientes</strong><p>Las sanciones registradas ya fueron canceladas.</p></div>';
   const groups = teams.map((team) => {
-    const detailed = cards.filter((item) => item.teamId === team.id).map((item) => {
-      const pendingSanctions = pendingSanctionsForPlayer(item.playerId);
-      return { ...item, amount: pendingSanctions.reduce((sum, sanction) => sum + pendingAmountForSanction(sanction), 0), pendingSanctions, suspension: pendingSanctions.reduce((sum, sanction) => sum + Number(sanction.suspensionMatches || 0), 0), suspensionText: suspensionTextForSanctions(pendingSanctions) };
-    }).filter((item) => item.amount > 0);
-    return { team, items: detailed };
+    return { team, items: pending.filter((sanction) => sanction.teamId === team.id).sort((a, b) => Number(roundForSanction(a) || 0) - Number(roundForSanction(b) || 0) || playerName(a.playerId).localeCompare(playerName(b.playerId))) };
   }).filter((group) => group.items.length);
-  if (!groups.length) return '<div class="empty-state compact"><strong>No hay pagos pendientes</strong><p>Las tarjetas registradas ya fueron canceladas.</p></div>';
   return `<div class="sanction-team-groups">${groups.map(({ team, items }) => {
-    const totals = items.reduce((result, item) => ({ yellow: result.yellow + item.yellow, red: result.red + item.red, suspension: result.suspension + item.suspension, amount: result.amount + item.amount }), { yellow: 0, red: 0, suspension: 0, amount: 0 });
-    const showRed = totals.red > 0;
+    const total = items.reduce((sum, item) => sum + Number(paymentSummary(item)?.amount || item.amount || 0), 0);
     const rows = items.map((item) => {
-      const paymentCell = pendingPaymentDetail(item.pendingSanctions);
-      const yellowStreak = currentYellowStreak(item.playerId);
-      return `<tr><td>${esc(playerName(item.playerId))}</td><td><div class="yellow-streak-detail"><span class="yellow-total" title="Racha actual de amarillas consecutivas">${yellowStreak}</span><small>${item.yellow} en total</small></div></td>${showRed ? `<td>${item.red ? `<span class="red-total">${item.red}</span>` : '—'}</td>` : ''}<td class="suspension-cell">${item.suspensionText}</td><td>${paymentCell}</td></tr>`;
+      const payment = paymentSummary(item); const round = roundForSanction(item); const suspension = Number(item.suspensionMatches || 0);
+      const card = item.type === 'YELLOW_CARD' ? '🟨 Amarilla' : item.type === 'DOUBLE_YELLOW' ? '🟨🟥 Doble amarilla' : item.type === 'RED_CARD' ? '🟥 Roja directa' : '⛔ Expulsión';
+      const suspensionCell = suspension ? `<strong>${suspension} fecha${suspension === 1 ? '' : 's'}</strong><small>${esc(item.reason || 'Suspensión disciplinaria')}</small>` : 'Sin suspensión';
+      return `<tr><td><strong>${esc(playerName(item.playerId))}</strong></td><td>${round ? `Fecha ${round}` : 'Sin fecha'}</td><td>${card}</td><td class="suspension-cell">${suspensionCell}</td><td><strong>S/ ${Number(payment?.amount || item.amount || 0).toFixed(2)}</strong></td><td><span class="badge pending-badge">Pendiente</span></td></tr>`;
     });
-    return `<section class="sanction-team-card${showRed ? ' has-red-column' : ''}"><header><div><small>Equipo</small><h3>${esc(team.name)}</h3></div><div class="sanction-team-summary"><span title="Total de amarillas acumuladas por el equipo">🟨 <strong>${totals.yellow}</strong></span>${showRed ? `<span>🟥 <strong>${totals.red}</strong></span>` : ''}<span class="sanction-team-amount">Pendiente: <strong>S/ ${totals.amount.toFixed(2)}</strong></span></div></header>${table(['Jugador', 'Racha consecutiva', ...(showRed ? ['Rojas'] : []), 'Suspensión', 'Pago pendiente'], rows, '')}</section>`;
+    return `<section class="sanction-team-card"><header><div><small>Equipo</small><h3>${esc(team.name)}</h3></div><div class="sanction-team-summary"><span>${items.length} sanción(es)</span><span class="sanction-team-amount">Pendiente: <strong>S/ ${total.toFixed(2)}</strong></span></div></header>${table(['Jugador', 'Fecha', 'Tarjeta', 'Suspensión', 'Monto', 'Pago'], rows, '')}</section>`;
   }).join('')}</div>`;
 }
 
@@ -174,8 +195,8 @@ async function load() {
     teams = data.teams || []; players = data.players || []; matches = data.matches || [];
     const playerIds = new Set(players.map((player) => player.id));
     events = (data.events || []).filter((event) => playerIds.has(event.playerId));
-    sanctions = (data.sanctions || []).filter((sanction) => playerIds.has(sanction.playerId));
-    const sanctionIds = new Set(sanctions.map((sanction) => sanction.id));
+    sanctions = mergeDoubleYellowSanctions((data.sanctions || []).filter((sanction) => playerIds.has(sanction.playerId)));
+    const sanctionIds = new Set(sanctions.flatMap((sanction) => sanction.sourceSanctionIds || [sanction.id]));
     payments = (data.payments || []).filter((payment) => sanctionIds.has(payment.sanctionId));
     document.querySelector('#sidebar-championship').textContent = championship?.shortName || championship?.name || 'Campeonato';
     document.querySelector('#reports-context').textContent = `${championship?.name || ''} · ${discipline?.name || ''}`;
