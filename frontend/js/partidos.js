@@ -17,6 +17,7 @@ const scheduleStatus = document.querySelector('#schedule-status');
 let championship; let discipline; let teams = []; let rounds = []; let activeRound = 1;
 let fixtureSaved = false;
 let showingGeneral = false;
+let editingOrderRound = 0;
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 
 function teamOptions(blankLabel = 'Selecciona') { return `<option value="">${blankLabel}</option>${teams.map((team) => `<option value="${team.id}">${escapeHtml(team.name)}</option>`).join('')}`; }
@@ -154,17 +155,18 @@ function renderRound() {
   round.matches = orderAdministrativeMatchesFirst(round.matches);
   const firstMatch = round.matches[0];
   const confirmed = round.matches.length && round.matches.every((match) => match.orderConfirmed);
+  const editingOrder = editingOrderRound === round.number;
   const canManageOrder = round.number === nextPendingRoundNumber();
   const showOrder = roundHasOfficialOrder(round);
   const points = calculatePoints();
   const compactTimes = compactRoundTimes(round, round.matches.find((match) => !isEliminationAward(match) && match.time)?.time || '');
   renderTabs();
-  const orderControls = showOrder && confirmed
-    ? '<span class="confirmed-order">✓ Orden confirmado</span>'
+  const orderControls = showOrder && confirmed && !editingOrder
+    ? `<button class="secondary-button" type="button" data-edit-order>Corregir orden</button><span class="confirmed-order">✓ Orden confirmado</span>`
     : canManageOrder
       ? `<button class="secondary-button" type="button" data-suggest-order>Orden sugerido por puntos</button>${fixtureSaved ? '<button class="action-button" type="button" data-confirm-order>Confirmar orden</button>' : ''}`
       : '<span class="pending-order-label">Disponible después de cerrar la fecha anterior</span>';
-  content.innerHTML = `<div class="round-heading"><div><h3>Fecha ${round.number}</h3><div class="print-round-details"><strong>${escapeHtml(firstMatch?.date ? displayDate(firstMatch.date) : 'Fecha pendiente')}</strong><span>${escapeHtml(firstMatch?.venue || 'Escenario pendiente')}</span></div></div><div class="button-group">${canManageOrder || showOrder ? '<button class="secondary-button" type="button" data-schedule-round>Programar fecha</button>' : ''}${orderControls}</div></div>${roundDateVenueSummary(round)}<div class="fixture-match-list compact-fixture-list">${round.matches.map((match, index) => `<article class="fixture-match${showOrder ? '' : ' order-pending'}${matchPlayed(match) ? ' played-match' : ''}${isEliminationAward(match) ? ' eliminated-fixture-match' : ''}">${showOrder ? `<div class="match-left-meta"><span class="match-order">${index + 1}.°</span><span class="match-time">${escapeHtml(displayMatchTime(match, index, compactTimes[index]))}</span></div>` : ''}<div class="match-teams"><strong>${teamWithAdministrativeState(match, match.homeId)}</strong><span class="versus-badge${matchPlayed(match) ? ' score-badge' : ''}">${escapeHtml(matchScoreText(match))}</span><strong>${teamWithAdministrativeState(match, match.awayId)}</strong></div><div class="match-metadata">${isEliminationAward(match) ? '<span class="elimination-match-badge">W.O. reglamentario · Presentación y validación arbitral requerida</span>' : matchPlayed(match) ? '<span class="finished-badge">Resultado cerrado</span>' : `<span class="points-badge subtle-points" title="Suma de puntos, solo referencia para ordenar">${(points[match.homeId] || 0) + (points[match.awayId] || 0)} pts.</span>`}</div>${canManageOrder && !confirmed ? `<div class="order-actions"><button type="button" data-move="up" data-index="${index}" ${index === 0 ? 'disabled' : ''}>Subir</button><button type="button" data-move="down" data-index="${index}" ${index === round.matches.length - 1 ? 'disabled' : ''}>Bajar</button></div>` : ''}</article>`).join('')}</div>${round.byeTeamId ? `<div class="bye-card">Descansa: <strong>${escapeHtml(teamName(round.byeTeamId))}</strong></div>` : ''}`;
+  content.innerHTML = `<div class="round-heading"><div><h3>Fecha ${round.number}</h3><div class="print-round-details"><strong>${escapeHtml(firstMatch?.date ? displayDate(firstMatch.date) : 'Fecha pendiente')}</strong><span>${escapeHtml(firstMatch?.venue || 'Escenario pendiente')}</span></div></div><div class="button-group">${canManageOrder || showOrder ? '<button class="secondary-button" type="button" data-schedule-round>Programar fecha</button>' : ''}${orderControls}</div></div>${roundDateVenueSummary(round)}<div class="fixture-match-list compact-fixture-list">${round.matches.map((match, index) => `<article class="fixture-match${showOrder ? '' : ' order-pending'}${matchPlayed(match) ? ' played-match' : ''}${isEliminationAward(match) ? ' eliminated-fixture-match' : ''}">${showOrder ? `<div class="match-left-meta"><span class="match-order">${index + 1}.°</span><span class="match-time">${escapeHtml(displayMatchTime(match, index, compactTimes[index]))}</span></div>` : ''}<div class="match-teams"><strong>${teamWithAdministrativeState(match, match.homeId)}</strong><span class="versus-badge${matchPlayed(match) ? ' score-badge' : ''}">${escapeHtml(matchScoreText(match))}</span><strong>${teamWithAdministrativeState(match, match.awayId)}</strong></div><div class="match-metadata">${isEliminationAward(match) ? '<span class="elimination-match-badge">W.O. reglamentario · Presentación y validación arbitral requerida</span>' : matchPlayed(match) ? '<span class="finished-badge">Resultado cerrado</span>' : `<span class="points-badge subtle-points" title="Suma de puntos, solo referencia para ordenar">${(points[match.homeId] || 0) + (points[match.awayId] || 0)} pts.</span>`}</div>${canManageOrder && (!confirmed || editingOrder) && !isEliminationAward(match) ? `<div class="order-actions"><button type="button" data-move="up" data-index="${index}" ${index === 0 || isEliminationAward(round.matches[index - 1]) ? 'disabled' : ''}>Subir</button><button type="button" data-move="down" data-index="${index}" ${index === round.matches.length - 1 ? 'disabled' : ''}>Bajar</button></div>` : ''}</article>`).join('')}</div>${round.byeTeamId ? `<div class="bye-card">Descansa: <strong>${escapeHtml(teamName(round.byeTeamId))}</strong></div>` : ''}`;
   document.querySelector('#print-fixture').textContent = `Imprimir Fecha ${round.number}`;
 }
 
@@ -221,20 +223,29 @@ document.querySelector('#generate-fixture').addEventListener('click', () => {
   try { if (teams.length < 2) throw new Error('Se necesitan al menos dos equipos.'); const ordered = orderedTeams(); const seed = manualCheckbox.checked ? manualSeed() : methodSelect.value === 'paired-reverse' ? pairedReverseSeed(ordered) : ordered; rounds = generateRounds(seed); activeRound = 1; preview.hidden = false; status.textContent = ''; renderRound(); }
   catch (error) { status.className = 'form-status error-message'; status.textContent = error.message; }
 });
-tabs.addEventListener('click', (event) => { const tab = event.target.closest('[data-round]'); if (tab) { activeRound = Number(tab.dataset.round); renderRound(); } });
+tabs.addEventListener('click', (event) => { const tab = event.target.closest('[data-round]'); if (tab) { activeRound = Number(tab.dataset.round); editingOrderRound = 0; renderRound(); } });
 content.addEventListener('click', async (event) => {
   const round = rounds.find((item) => item.number === activeRound);
+  if (event.target.closest('[data-edit-order]')) { editingOrderRound = round.number; renderRound(); return; }
   const moveButton = event.target.closest('[data-move]');
-  if (moveButton) { const index = Number(moveButton.dataset.index); const target = moveButton.dataset.move === 'up' ? index - 1 : index + 1; [round.matches[index], round.matches[target]] = [round.matches[target], round.matches[index]]; round.matches.forEach((match, i) => { match.order = i + 1; }); renderRound(); return; }
+  if (moveButton) { const index = Number(moveButton.dataset.index); const target = moveButton.dataset.move === 'up' ? index - 1 : index + 1; if (!round.matches[target] || isEliminationAward(round.matches[target])) return; [round.matches[index], round.matches[target]] = [round.matches[target], round.matches[index]]; round.matches.forEach((match, i) => { match.order = i + 1; }); renderRound(); return; }
   if (event.target.closest('[data-suggest-order]')) {
     const points = calculatePoints();
-    round.matches = round.matches.map((match, index) => ({ ...match, previousOrder: index })).sort((a, b) => ((points[a.homeId] || 0) + (points[a.awayId] || 0)) - ((points[b.homeId] || 0) + (points[b.awayId] || 0)) || a.previousOrder - b.previousOrder);
+    round.matches = round.matches.map((match, index) => ({ ...match, previousOrder: index })).sort((a, b) => Number(isEliminationAward(b)) - Number(isEliminationAward(a)) || ((points[a.homeId] || 0) + (points[a.awayId] || 0)) - ((points[b.homeId] || 0) + (points[b.awayId] || 0)) || a.previousOrder - b.previousOrder);
     round.matches.forEach((match, index) => { match.order = index + 1; }); renderRound(); return;
   }
   const confirmButton = event.target.closest('[data-confirm-order]');
   if (confirmButton) {
     confirmButton.disabled = true;
-    try { await Promise.all(round.matches.map((match, index) => apiPut('/api/matches', { id: match.id, order: index + 1, orderConfirmed: true }))); round.matches.forEach((match, index) => { match.order = index + 1; match.orderConfirmed = true; }); renderRound(); }
+    try {
+      const playableTimes = round.matches.filter((match) => !isEliminationAward(match) && match.time).map((match) => displayTime(match.time)).sort();
+      const firstTime = playableTimes[0] || '';
+      const correctedTimes = compactRoundTimes(round, firstTime);
+      const updated = await Promise.all(round.matches.map((match, index) => apiPut('/api/matches', { id: match.id, order: index + 1, orderConfirmed: true, ...(firstTime ? { time: correctedTimes[index] } : {}) })));
+      round.matches = updated.map((response) => response.data).sort((a, b) => a.order - b.order);
+      editingOrderRound = 0;
+      renderRound();
+    }
     catch (error) { status.className = 'form-status error-message'; status.textContent = error.message; confirmButton.disabled = false; }
   }
   if (event.target.closest('[data-schedule-round]')) openScheduleModal();
