@@ -135,6 +135,11 @@ function calculatePoints() {
   });
   return points;
 }
+function applySuggestedOrder(round) {
+  const points = calculatePoints();
+  round.matches = round.matches.map((match, index) => ({ ...match, previousOrder: index })).sort((a, b) => Number(isEliminationAward(b)) - Number(isEliminationAward(a)) || ((points[a.homeId] || 0) + (points[a.awayId] || 0)) - ((points[b.homeId] || 0) + (points[b.awayId] || 0)) || a.previousOrder - b.previousOrder);
+  round.matches.forEach((match, index) => { match.order = index + 1; });
+}
 function matchPlayed(match) { return match.closed || match.status === 'FINISHED' || match.roundLocked; }
 function matchScoreText(match) {
   if (!matchPlayed(match) || match.homeScore === '' || match.homeScore === undefined || match.awayScore === '' || match.awayScore === undefined) return 'VS';
@@ -212,6 +217,8 @@ async function initialize() {
     if (saved.length) {
       const grouped = Object.groupBy ? Object.groupBy(saved, (item) => item.round) : saved.reduce((acc, item) => ((acc[item.round] ||= []).push(item), acc), {});
       rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b).map((number) => ({ number, matches: orderAdministrativeMatchesFirst(grouped[number]), byeTeamId: teams.find((team) => !grouped[number].some((match) => match.homeId === team.id || match.awayId === team.id))?.id || '' }));
+      const nextRound = rounds.find((round) => !roundCompleted(round));
+      if (nextRound && !nextRound.matches.every((match) => match.orderConfirmed)) applySuggestedOrder(nextRound);
       fixtureSaved = true; builder.hidden = true; preview.hidden = false; document.querySelector('#save-fixture').hidden = true; renderRound();
     }
   } catch (error) { status.className = 'form-status error-message'; status.textContent = error.message; }
@@ -230,9 +237,7 @@ content.addEventListener('click', async (event) => {
   const moveButton = event.target.closest('[data-move]');
   if (moveButton) { const index = Number(moveButton.dataset.index); const target = moveButton.dataset.move === 'up' ? index - 1 : index + 1; if (!round.matches[target] || isEliminationAward(round.matches[target])) return; [round.matches[index], round.matches[target]] = [round.matches[target], round.matches[index]]; round.matches.forEach((match, i) => { match.order = i + 1; }); renderRound(); return; }
   if (event.target.closest('[data-suggest-order]')) {
-    const points = calculatePoints();
-    round.matches = round.matches.map((match, index) => ({ ...match, previousOrder: index })).sort((a, b) => Number(isEliminationAward(b)) - Number(isEliminationAward(a)) || ((points[a.homeId] || 0) + (points[a.awayId] || 0)) - ((points[b.homeId] || 0) + (points[b.awayId] || 0)) || a.previousOrder - b.previousOrder);
-    round.matches.forEach((match, index) => { match.order = index + 1; }); renderRound(); return;
+    applySuggestedOrder(round); renderRound(); return;
   }
   const confirmButton = event.target.closest('[data-confirm-order]');
   if (confirmButton) {
