@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut } from './api.js?v=20260903-1';
+import { apiGet, apiPost, apiPut } from './api.js?v=20261001-1';
 
 const selectedId = localStorage.getItem('ligaControlChampionshipId') || '';
 const list = document.querySelector('#team-list');

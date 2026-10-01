@@ -27,19 +27,28 @@ async function request(method, path, body, params = {}) {
       } catch (error) { apiCacheStorage.removeItem(cacheKey); }
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
     const requestBody = method === 'GET'
       ? undefined
       : { ...(body || {}), _adminKey: localStorage.getItem('ligaControlAdminKey') || '' };
-    const response = await fetch(url, {
-      method: tunneledMethod ? 'POST' : method,
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: requestBody ? JSON.stringify(requestBody) : undefined,
-      cache: method === 'GET' && fresh ? 'no-store' : 'default',
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+    let response;
+    const attempts = method === 'GET' ? 2 : 1;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      try {
+        const retryUrl = attempt ? `${url}${url.includes('?') ? '&' : '?'}_retry=${Date.now()}` : url;
+        response = await fetch(retryUrl, {
+          method: tunneledMethod ? 'POST' : method,
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: requestBody ? JSON.stringify(requestBody) : undefined,
+          cache: method === 'GET' && (fresh || attempt > 0) ? 'no-store' : 'default',
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      if (response.ok || ![404, 429, 500, 502, 503, 504].includes(response.status) || attempt === attempts - 1) break;
+    }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
     if (!payload.success) {
