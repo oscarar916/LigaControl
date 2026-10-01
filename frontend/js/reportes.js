@@ -212,7 +212,9 @@ function reportShareText() {
 async function load() {
   try {
     if (!championshipId || !disciplineId) throw new Error('Selecciona nuevamente el campeonato y el deporte para abrir sus reportes.');
-    const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId });
+    // Esta pantalla no utiliza el contenido completo de las actas. Omitirlo
+    // reduce el tiempo y el tamaño de la respuesta de Google Apps Script.
+    const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId, publicOnly: true });
     const data = response.data || {};
     championship = (data.championships || []).find((item) => item.id === championshipId);
     discipline = (data.disciplines || []).find((item) => item.id === disciplineId);
@@ -229,7 +231,12 @@ async function load() {
     document.querySelector('#report-footer-context').textContent = `${championship?.shortName || championship?.name || ''} · ${discipline?.name || ''}`;
     renderSummary(); renderReport();
   } catch (error) {
-    content.innerHTML = `<p class="error-message">${esc(error.message)}</p>`;
+    content.innerHTML = `<div class="empty-state compact"><p class="error-message">${esc(error.message)}</p><button id="retry-reports" class="secondary-button" type="button">Reintentar</button></div>`;
+    document.querySelector('#retry-reports')?.addEventListener('click', () => {
+      content.innerHTML = '<p class="muted">Cargando reportes…</p>';
+      status.textContent = '';
+      load();
+    }, { once: true });
     status.textContent = 'No se pudieron cargar los reportes.';
     status.className = 'form-status error-message';
   }
