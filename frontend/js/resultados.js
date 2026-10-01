@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiGetFresh, apiPost, apiPut } from './api.js';
+import { apiDelete, apiGet, apiGetFresh, apiPost, apiPut } from './api.js?v=20261001-2';
 
 const championshipId = localStorage.getItem('ligaControlChampionshipId') || '';
 const disciplineId = localStorage.getItem('ligaControlDisciplineId') || '';
@@ -12,6 +12,7 @@ const quickPlayerModal = document.querySelector('#quick-player-modal');
 const quickPlayerForm = document.querySelector('#quick-player-form');
 let teams = [], matches = [], players = [], events = [], minutes = [], sanctions = [], payments = [], currentDiscipline = null, activeMatch, lineupDraft = { home: [], away: [] };
 let currentRoundNumber = 0;
+const loadedMinuteMatchIds = new Set();
 
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
 const teamName = id => teams.find(team => team.id === id)?.name || 'Equipo';
@@ -310,7 +311,19 @@ function closeQuickPlayer() {
   if (!quickPlayerForm.querySelector('button[type="submit"]').disabled) quickPlayerModal.close();
 }
 
-function openSheet(match) {
+async function openSheet(match) {
+  if (!loadedMinuteMatchIds.has(match.id)) {
+    try {
+      const response = await apiGet('/api/minutes', { matchId: match.id });
+      minutes = minutes.filter(item => item.matchId !== match.id).concat(response.data?.items || []);
+      loadedMinuteMatchIds.add(match.id);
+    } catch (error) {
+      const lockStatus = document.querySelector('#round-lock-status');
+      lockStatus.textContent = `No se pudo abrir el acta: ${error.message}`;
+      lockStatus.className = 'form-status error-message';
+      return;
+    }
+  }
   activeMatch = match;
   const storedScore = { home: match.homeScore, away: match.awayScore };
   const savedMinute = minutes.find(item => item.matchId === match.id);
@@ -350,7 +363,7 @@ async function load() {
     if (!championshipId || !disciplineId) throw new Error('No hay un campeonato o deporte seleccionado. Regresa al resumen y entra nuevamente al deporte.');
     matchList.innerHTML = '<p class="muted">Cargando resultados…</p>';
     const selectedRound = roundSelect.value;
-    const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId });
+    const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId, publicOnly: true });
     const data = response.data || {};
     const championship = (data.championships || []).find(item => item.id === championshipId);
     const discipline = (data.disciplines || []).find(item => item.id === disciplineId);
@@ -363,7 +376,7 @@ async function load() {
     sanctions = (data.sanctions || []).filter(sanction => activePlayerIds.has(sanction.playerId));
     const sanctionIds = new Set(sanctions.map(sanction => sanction.id));
     payments = (data.payments || []).filter(payment => sanctionIds.has(payment.sanctionId));
-    minutes = data.minutes || [];
+    minutes = [];
     document.querySelector('#sidebar-championship').textContent = championship?.shortName || championship?.name || 'Campeonato';
     document.querySelector('#results-context').textContent = `${championship?.name || ''} · ${discipline?.name || ''}`;
     const rounds = [...new Set(matches.map(item => item.round))].sort((a, b) => a - b);

@@ -31,6 +31,7 @@ async function request(method, path, body, params = {}) {
       ? undefined
       : { ...(body || {}), _adminKey: localStorage.getItem('ligaControlAdminKey') || '' };
     let response;
+    let lastFetchError;
     const attempts = method === 'GET' ? 2 : 1;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const controller = new AbortController();
@@ -44,8 +45,15 @@ async function request(method, path, body, params = {}) {
           cache: method === 'GET' && (fresh || attempt > 0) ? 'no-store' : 'default',
           signal: controller.signal
         });
+        lastFetchError = undefined;
+      } catch (error) {
+        lastFetchError = error;
       } finally {
         clearTimeout(timeoutId);
+      }
+      if (lastFetchError) {
+        if (attempt === attempts - 1) throw lastFetchError;
+        continue;
       }
       if (response.ok || ![404, 429, 500, 502, 503, 504].includes(response.status) || attempt === attempts - 1) break;
     }
