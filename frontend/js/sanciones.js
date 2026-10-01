@@ -56,11 +56,12 @@ function filteredSanctions() {
 }
 
 function renderSummary() {
-  const validIds = new Set(sanctions.flatMap((sanction) => sanction.sourceSanctionIds || [sanction.id]));
-  const validPayments = payments.filter((payment) => validIds.has(payment.sanctionId));
-  const pending = validPayments.filter((payment) => payment.status === 'PENDING');
-  const paid = validPayments.filter((payment) => payment.status === 'PAID');
-  const suspended = sanctions.filter((sanction) => Number(sanction.suspensionMatches || 0) > 0).length;
+  const teamIds = new Set(teams.map((team) => team.id));
+  const visibleSanctions = sanctions.filter((sanction) => teamIds.has(sanction.teamId));
+  const summaries = visibleSanctions.map((sanction) => paymentSummary(sanction)).filter(Boolean);
+  const pending = summaries.filter((payment) => payment.status === 'PENDING');
+  const paid = summaries.filter((payment) => payment.status === 'PAID');
+  const suspended = visibleSanctions.filter((sanction) => Number(sanction.suspensionMatches || 0) > 0).length;
   document.querySelector('#sanction-summary').innerHTML = `<article><span>Pendiente de cobro</span><strong class="danger-value">S/ ${pending.reduce((sum, payment) => sum + Number(payment.amount || 0), 0).toFixed(2)}</strong><small>${pending.length} multa(s)</small></article><article><span>Total pagado</span><strong class="success-value">S/ ${paid.reduce((sum, payment) => sum + Number(payment.amount || 0), 0).toFixed(2)}</strong><small>${paid.length} pago(s)</small></article><article><span>Suspensiones</span><strong>${suspended}</strong><small>Registros con fechas de suspensión</small></article><article><span>Sanciones válidas</span><strong>${sanctions.length}</strong><small>Del deporte seleccionado</small></article>`;
 }
 
