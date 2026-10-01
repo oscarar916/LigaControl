@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiGetFresh, apiPost, apiPut } from './api.js?v=20261001-2';
+import { apiDelete, apiGet, apiGetFresh, apiPost, apiPut } from './api.js?v=20261001-3';
 
 const championshipId = localStorage.getItem('ligaControlChampionshipId') || '';
 const disciplineId = localStorage.getItem('ligaControlDisciplineId') || '';

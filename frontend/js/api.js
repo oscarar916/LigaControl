@@ -32,7 +32,11 @@ async function request(method, path, body, params = {}) {
       : { ...(body || {}), _adminKey: localStorage.getItem('ligaControlAdminKey') || '' };
     let response;
     let lastFetchError;
-    const attempts = method === 'GET' ? 2 : 1;
+    // Apps Script ocasionalmente devuelve un 404 transitorio aun con una
+    // implementación vigente. Las lecturas reintentan fallos de red; las
+    // escrituras solo reintentan cuando recibieron explícitamente un 404,
+    // evitando duplicados si la conexión se corta después de guardar.
+    const attempts = 2;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000);
@@ -52,10 +56,13 @@ async function request(method, path, body, params = {}) {
         clearTimeout(timeoutId);
       }
       if (lastFetchError) {
-        if (attempt === attempts - 1) throw lastFetchError;
+        if (method !== 'GET' || attempt === attempts - 1) throw lastFetchError;
         continue;
       }
-      if (response.ok || ![404, 429, 500, 502, 503, 504].includes(response.status) || attempt === attempts - 1) break;
+      const retryableStatus = method === 'GET'
+        ? [404, 429, 500, 502, 503, 504].includes(response.status)
+        : response.status === 404;
+      if (response.ok || !retryableStatus || attempt === attempts - 1) break;
     }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
