@@ -31,10 +31,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p _site/css _site/js
+          cp frontend/*.html _site/
           cp frontend/publico.html _site/index.html
-          cp frontend/publico.html _site/publico.html
           cp frontend/css/styles.css frontend/css/variables.css _site/css/
-          cp frontend/js/app.js frontend/js/api.js frontend/js/config.js frontend/js/publico.js _site/js/
+          cp frontend/js/*.js _site/js/
           touch _site/.nojekyll
 
       - name: Subir sitio estático

@@ -3,7 +3,7 @@ var ConfigurationService = {
   get: function (context) {
     var params = context.params || {}, items = listSheetRecords(SHEETS.CONFIGURATION).filter(function (item) { return (!params.championshipId || String(item.campeonato_id) === String(params.championshipId)) && (!params.disciplineId || !item.disciplina_id || String(item.disciplina_id) === String(params.disciplineId)) && String(item.estado) !== 'INACTIVE'; }), settings = {};
     Object.keys(SANCTION_DEFAULTS).forEach(function (key) { settings[key] = SANCTION_DEFAULTS[key]; });
-    items.forEach(function (item) { settings[String(item.clave)] = Number(item.valor); });
+    items.forEach(function (item) { if (String(item.tipo_dato) !== 'JSON') settings[String(item.clave)] = Number(item.valor); });
     return { settings: settings, items: items, total: items.length };
   },
   post: function (context) {

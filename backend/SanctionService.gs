@@ -29,6 +29,11 @@ function createSanctionForEvent(eventRecord, match) {
     deactivateSanctionForEvent(eventRecord.id);
     return null;
   }
+  if (doubleYellow) {
+    yellowEventsInMatch.forEach(function (card) {
+      if (String(card.id) !== String(doubleYellowEvent.id)) deactivateSanctionForEvent(card.id);
+    });
+  }
   var matches = listSheetRecords(SHEETS.MATCHES), playerCards = listSheetRecords(SHEETS.EVENTS).filter(function (x) { if (String(x.jugador_id) !== String(eventRecord.jugador_id) || String(x.tipo) !== String(eventRecord.tipo) || String(x.estado) === 'INACTIVE') return false; var m = matches.find(function (candidate) { return String(candidate.id) === String(x.partido_id); }); return m && String(m.campeonato_id) === String(match.campeonato_id) && String(m.disciplina_id) === String(match.disciplina_id); }).sort(function (a, b) { return String(a.created_at || '').localeCompare(String(b.created_at || '')); });
   var eventIndex = playerCards.findIndex(function (x) { return String(x.id) === String(eventRecord.id); });
   var yellow = eventRecord.tipo === 'YELLOW_CARD';

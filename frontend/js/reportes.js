@@ -26,6 +26,12 @@ function paymentSummary(sanction) {
   return { status: items.every((payment) => payment.status === 'PAID') ? 'PAID' : 'PENDING', amount: items.reduce((sum, payment) => sum + Number(payment.amount || 0), 0), date: items.map((payment) => payment.date).filter(Boolean).sort().at(-1) || '' };
 }
 function mergeDoubleYellowSanctions(items) {
+  // La doble amarilla ya incluye las dos tarjetas y su multa.
+  items = items.filter((sanction) => {
+    if (sanction.type !== 'YELLOW_CARD') return true;
+    const event = events.find((candidate) => candidate.id === sanction.eventId);
+    return !event || !items.some((other) => other.type === 'DOUBLE_YELLOW' && other.playerId === sanction.playerId && other.teamId === sanction.teamId && events.some((candidate) => candidate.id === other.eventId && candidate.matchId === event.matchId));
+  });
   const grouped = new Map();
   items.forEach((sanction) => {
     const event = events.find((candidate) => candidate.id === sanction.eventId);
@@ -128,7 +134,55 @@ function renderStandings() {
   const standingsRows = standings();
   const showGoalColumns = !isVolley();
   const rows = standingsRows.map((item, index) => `<tr class="${standingsRows.length > 8 && index < 8 ? 'qualified-row ' : ''}${standingsRows.length > 8 && index === 7 ? 'classification-cutoff-row' : ''}"><td><strong>${index + 1}</strong></td><td><strong>${esc(item.team.name)}</strong>${item.team.status === 'ELIMINATED' ? '<span class="badge eliminated-badge">Eliminado · 2 W.O.</span>' : ''}</td><td class="points-column"><strong>${item.pts}</strong></td><td>${item.pj}</td><td>${item.pg}</td>${isVolley() ? '' : `<td>${item.pe}</td>`}<td>${item.pp}</td>${showGoalColumns ? `<td>${item.gf}</td><td>${item.gc}</td><td>${item.gf - item.gc}</td>` : ''}</tr>`);
-  return table(['Pos.', 'Equipo', 'PTS', 'PJ', 'PG', ...(isVolley() ? [] : ['PE']), 'PP', ...(showGoalColumns ? ['GF', 'GC', 'DG'] : [])], rows, 'Todavía no hay equipos registrados.');
+  return `<div class="standings-guide"><span>Zona de clasificación: primeros 8</span><span>3 puntos por victoria · 1 por empate</span></div>${table(['Pos.', 'Equipo', 'PTS', 'PJ', 'PG', ...(isVolley() ? [] : ['PE']), 'PP', ...(showGoalColumns ? ['GF', 'GC', 'DG'] : [])], rows, 'Todavía no hay equipos registrados.')}<p class="standings-key">PTS: puntos · PJ: jugados · PG: ganados · PE: empatados · PP: perdidos · GF: goles a favor · GC: goles en contra · DG: diferencia de goles</p>`;
+}
+
+async function standingsImage() {
+  const rows = standings();
+  if (!rows.length) throw new Error('Todavía no hay equipos para compartir.');
+  await document.fonts.ready;
+  const canvas = document.createElement('canvas');
+  canvas.width = 1200; canvas.height = 355 + rows.length * 68;
+  const ctx = canvas.getContext('2d');
+  const write = (text, x, y, size = 20, color = '#102b4e', weight = '400', align = 'left', width) => {
+    ctx.font = `${weight} ${size}px Arial`; ctx.fillStyle = color; ctx.textAlign = align;
+    ctx.fillText(String(text), x, y, width);
+  };
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#10366c'; ctx.fillRect(0, 0, 1200, 190);
+  write('LIGACONTROL  /  REPORTE OFICIAL', 40, 40, 16, '#b9d5ff', '700');
+  write(championship?.name || 'Campeonato', 40, 88, 32, '#ffffff', '700', 'left', 1120);
+  write(`TABLA DE POSICIONES · ${discipline?.name || 'Deporte'}`, 40, 131, 24, '#ffffff', '700');
+  write(`Actualizado: ${new Intl.DateTimeFormat('es-PE', { dateStyle: 'long' }).format(new Date())}`, 40, 165, 17, '#dbeafe');
+  write('Primeros 8: zona de clasificación', 40, 225, 18, '#087044', '700');
+  const volley = isVolley();
+  const columns = volley ? [['PTS', 720], ['PJ', 820], ['PG', 920], ['PP', 1040]] : [['PTS', 600], ['PJ', 680], ['PG', 755], ['PE', 830], ['PP', 905], ['GF', 980], ['GC', 1055], ['DG', 1130]];
+  write('POS.', 42, 268, 15, '#52657e', '700'); write('EQUIPO', 105, 268, 15, '#52657e', '700');
+  columns.forEach(([label, x]) => write(label, x, 268, 15, '#52657e', '700', 'center'));
+  rows.forEach((item, index) => {
+    const y = 286 + index * 68;
+    ctx.fillStyle = index < 8 ? '#eaf7f0' : index % 2 ? '#f3f6fa' : '#ffffff'; ctx.fillRect(30, y, 1140, 68);
+    if (index < 8) { ctx.fillStyle = '#16945b'; ctx.fillRect(30, y, 5, 68); }
+    write(index + 1, 58, y + 42, 23, '#10366c', '700');
+    write(item.team.name, 105, y + (item.team.status === 'ELIMINATED' ? 29 : 42), 22, '#102b4e', '700', 'left', volley ? 545 : 435);
+    if (item.team.status === 'ELIMINATED') write('Eliminado · 2 W.O.', 105, y + 53, 14, '#b42318');
+    const values = { PTS: item.pts, PJ: item.pj, PG: item.pg, PE: item.pe, PP: item.pp, GF: item.gf, GC: item.gc, DG: item.gf - item.gc };
+    columns.forEach(([label, x]) => write(values[label], x, y + 42, label === 'PTS' ? 26 : 21, label === 'PTS' ? '#125bce' : '#102b4e', label === 'PTS' ? '700' : '400', 'center'));
+    ctx.strokeStyle = index === 7 ? '#16945b' : '#dbe3ed'; ctx.lineWidth = index === 7 ? 4 : 1;
+    ctx.beginPath(); ctx.moveTo(30, y + 68); ctx.lineTo(1170, y + 68); ctx.stroke();
+  });
+  const bottom = 286 + rows.length * 68;
+  write('PTS: puntos  ·  PJ: jugados  ·  PG: ganados  ·  PP: perdidos', 40, bottom + 29, 15, '#52657e');
+  if (!volley) write('PE: empatados  ·  GF / GC: goles a favor / en contra  ·  DG: diferencia de goles', 40, bottom + 53, 15, '#52657e');
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('No se pudo generar la imagen.');
+  return new File([blob], 'tabla-de-posiciones.png', { type: 'image/png' });
+}
+
+function downloadReportImage(file) {
+  const url = URL.createObjectURL(file); const link = document.createElement('a');
+  link.href = url; link.download = file.name; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 function renderScorers() {
@@ -194,6 +248,7 @@ const reportDefinitions = {
 };
 
 function renderReport() {
+  document.querySelector('#download-report-image').hidden = activeReport !== 'standings';
   const definition = reportDefinitions[activeReport];
   document.querySelector('#report-title').textContent = definition.title;
   document.querySelector('#report-description').textContent = definition.description;
@@ -244,9 +299,20 @@ async function load() {
 
 document.querySelector('.report-tabs').addEventListener('click', (event) => { const button = event.target.closest('[data-report]'); if (button) { activeReport = button.dataset.report; renderReport(); } });
 document.querySelector('#print-report').addEventListener('click', () => window.print());
+document.querySelector('#download-report-image').addEventListener('click', async () => {
+  try { downloadReportImage(await standingsImage()); status.textContent = 'Imagen lista para enviar por WhatsApp o publicar.'; status.className = 'form-status success-message'; }
+  catch (error) { status.textContent = error.message; status.className = 'form-status error-message'; }
+});
 document.querySelector('#share-report').addEventListener('click', async () => {
   const text = reportShareText();
   try {
+    if (activeReport === 'standings') {
+      const file = await standingsImage();
+      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: 'Tabla de posiciones' });
+      else downloadReportImage(file);
+      status.textContent = 'Imagen preparada para compartir.'; status.className = 'form-status success-message';
+      return;
+    }
     if (navigator.share) await navigator.share({ title: reportDefinitions[activeReport].title, text });
     else await navigator.clipboard.writeText(text);
     status.textContent = navigator.share ? 'Reporte compartido.' : 'Resumen copiado al portapapeles.';

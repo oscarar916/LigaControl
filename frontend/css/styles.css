@@ -181,7 +181,7 @@ a { color: inherit; text-decoration: none; } button { font: inherit; }
   .yellow-total,.red-total { min-width: 8mm; height: 6mm; border: 1px solid #8a6d00; border-radius: 2mm; color: #111827 !important; print-color-adjust: exact; }
   .yellow-total { background: #facc15 !important; }
   .red-total { background: #ef4444 !important; border-color: #991b1b; color: #fff !important; }
-  .suspension-cell { display: block !important; color: #111827 !important; }
+  .suspension-cell { display: table-cell !important; color: #111827 !important; }
   .suspension-cell strong { display: block; color: #0f172a !important; font-weight: 900; }
   .suspension-cell small { display: block; margin-top: .8mm; color: #1e3a8a !important; font-size: 8pt; font-weight: 700; line-height: 1.25; }
   .suspension-cell:has(strong) { background: #fff7ed !important; box-shadow: inset 3px 0 0 #f59e0b; print-color-adjust: exact; }
@@ -325,3 +325,52 @@ a { color: inherit; text-decoration: none; } button { font: inherit; }
 .walkover-box:not([open]) .walkover-mark { min-width: 42px; height: 29px; font-size: .82rem; }
 .sanction-team-card:not(.has-red-column) .report-table th:nth-child(3),.sanction-team-card:not(.has-red-column) .report-table td:nth-child(3) { width: 17%; }
 .sanction-team-card:not(.has-red-column) .report-table th:nth-child(4),.sanction-team-card:not(.has-red-column) .report-table td:nth-child(4) { width: 23%; }
+.reports-main .report-print-header { display: block; margin: 0 0 1.25rem; padding: 1.3rem; border-radius: 12px; background: #10366c; color: #fff; }
+.reports-main .report-print-header small { color: #b9d5ff; letter-spacing: .1em; font-weight: 800; }
+.reports-main .report-print-header h2 { margin: .5rem 0; color: #fff; }
+.reports-main .report-print-header p { margin: 0; color: #dbeafe; }
+.standings-guide { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .75rem; margin-top: 1rem; font-size: .85rem; color: var(--color-muted); }
+.standings-guide span:first-child { padding: .35rem .7rem; border-radius: 8px; background: #eaf7f0; color: #087044; font-weight: 800; }
+.standings-key { font-size: .78rem; line-height: 1.7; color: var(--color-muted); margin-bottom: 0; }
+.knockout-options { display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; margin: .8rem 0; }
+.knockout-options .field { flex: 1 1 170px; min-width: 0; }
+.knockout-options input,.knockout-options select { width: 100%; }
+.knockout-pairs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+.knockout-pair { min-width: 0; border: 1px solid var(--color-border); border-radius: 12px; padding: 1rem; margin: 1rem 0; }
+.knockout-pair fieldset { border: 0; padding: 0; min-width: 0; }
+.knockout-preview { margin-top: 1.5rem; }
+.knockout-preview > header { padding: 1rem; background: #10366c; color: #fff; border-radius: 10px; }
+.knockout-preview > header h2 { color: #fff; }
+.knockout-bracket { display: grid; grid-template-columns: repeat(var(--bracket-columns,3),minmax(0,1fr)); gap: 1.2rem; }
+.bracket-match { display: grid; gap: .4rem; margin: 1rem 0; padding: 1rem; border: 1px solid var(--color-border); border-left: 4px solid #2563eb; border-radius: 10px; break-inside: avoid; }
+.bracket-match small,.bracket-match span { color: var(--color-muted); }
+@media (max-width: 800px) { .knockout-pairs,.knockout-bracket { grid-template-columns: 1fr; } }
+@media print {
+  #knockout-editor,#knockout-results,#knockout-status { display: none !important; }
+  .knockout-preview { margin: 0; padding: 0; border: 0; box-shadow: none; }
+  .knockout-preview > header { background: #fff; color: #10366c; border-bottom: 2px solid #10366c; }
+  .knockout-preview > header h2 { color: #10366c; }
+  .knockout-bracket { grid-template-columns: repeat(var(--bracket-columns,3),minmax(0,1fr)); font-size: 10pt; }
+  .bracket-match,.bracket-match small,.bracket-match span { color: #102b4e; }
+}
+.sanction-team-card .report-table:has(th:nth-child(6)) th:nth-child(1),.sanction-team-card .report-table:has(th:nth-child(6)) td:nth-child(1) { width: 26%; }
+.sanction-team-card .report-table:has(th:nth-child(6)) th:nth-child(4),.sanction-team-card .report-table:has(th:nth-child(6)) td:nth-child(4) { width: 22%; }
+.sanction-team-card .report-table:has(th:nth-child(6)) th:nth-child(6),.sanction-team-card .report-table:has(th:nth-child(6)) td:nth-child(6) { width: 13%; text-align: center; padding-left: .5rem; padding-right: .5rem; white-space: nowrap; }
+.sanction-team-card .report-table td:nth-child(6) .badge { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; word-break: normal; overflow-wrap: normal; padding: .3rem .6rem; font-size: .8rem; line-height: 1.3; }
+@media print {
+  .reports-main .report-print-header { background: #fff; padding: 0 0 4mm; border-radius: 0; }
+  .reports-main .report-print-header small { color: #174ea6; }
+  .reports-main .report-print-header h2,.reports-main .report-print-header p { color: #111827; }
+  .sanction-team-card .report-table-wrap { overflow: visible; }
+  .sanction-team-card .report-table { min-width: 0; width: 100%; table-layout: fixed; }
+  .sanction-team-card .report-table th,.sanction-team-card .report-table td { box-sizing: border-box; padding: 2.6mm 2mm; white-space: normal; word-break: normal; overflow-wrap: normal; }
+  .sanction-team-card .report-table th:nth-child(1),.sanction-team-card .report-table td:nth-child(1) { width: 28% !important; }
+  .sanction-team-card .report-table th:nth-child(2),.sanction-team-card .report-table td:nth-child(2) { width: 9% !important; }
+  .sanction-team-card .report-table th:nth-child(3),.sanction-team-card .report-table td:nth-child(3) { width: 17% !important; }
+  .sanction-team-card .report-table th:nth-child(4),.sanction-team-card .report-table td:nth-child(4) { width: 24% !important; }
+  .sanction-team-card .report-table th:nth-child(5),.sanction-team-card .report-table td:nth-child(5) { width: 10% !important; }
+  .sanction-team-card .report-table th:nth-child(6),.sanction-team-card .report-table td:nth-child(6) { width: 12% !important; padding-left: 1mm; padding-right: 1mm; text-align: center; }
+  .sanction-team-card .report-table td:nth-child(6) .badge { font-size: 8pt; padding: 1mm 1.5mm; }
+  .sanction-team-card .suspension-cell { display: table-cell !important; }
+  .sanction-team-card .suspension-cell strong,.sanction-team-card .suspension-cell small { width: auto; max-width: none; white-space: normal; word-break: normal; overflow-wrap: normal; }
+}

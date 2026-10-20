@@ -20,6 +20,12 @@ function paymentSummary(sanction) {
   return { ids: items.map((payment) => payment.id), status: items.every((payment) => payment.status === 'PAID') ? 'PAID' : 'PENDING', amount: items.reduce((sum, payment) => sum + Number(payment.amount || 0), 0), date: items.map((payment) => payment.date).filter(Boolean).sort().at(-1) || '' };
 }
 function mergeDoubleYellowSanctions(items) {
+  // La doble amarilla ya incluye las dos tarjetas y su multa.
+  items = items.filter((sanction) => {
+    if (sanction.type !== 'YELLOW_CARD') return true;
+    const event = events.find((candidate) => candidate.id === sanction.eventId);
+    return !event || !items.some((other) => other.type === 'DOUBLE_YELLOW' && other.playerId === sanction.playerId && other.teamId === sanction.teamId && events.some((candidate) => candidate.id === other.eventId && candidate.matchId === event.matchId));
+  });
   const grouped = new Map();
   items.forEach((sanction) => {
     const event = events.find((candidate) => candidate.id === sanction.eventId);

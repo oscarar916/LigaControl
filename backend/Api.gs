@@ -27,6 +27,7 @@ function authorizeRequest(method, body) {
 }
 function resolveRoute(method, path, params, body) {
   var routes = { '/api/championships': ChampionshipService, '/api/disciplines': DisciplineService, '/api/configuration': ConfigurationService, '/api/teams': TeamService, '/api/players': PlayerService, '/api/matches': MatchService, '/api/events': EventService, '/api/minutes': MinuteService, '/api/sanctions': SanctionService, '/api/payments': PaymentService, '/api/results-bootstrap': ResultsBootstrapService, '/api/reports': ReportService, '/api/audit': AuditService };
+  if (path === '/api/knockouts') routes[path] = KnockoutService;
   var service = routes[path];
   if (!service) return errorResponse('NOT_FOUND', 'Ruta no encontrada', 404);
   var handler = service[method.toLowerCase()];
