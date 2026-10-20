@@ -77,7 +77,7 @@ function readPlan() {
 }
 function bracketLayout(plan) {
   const rounds = stages(plan.size), final = plan.size-2, sources = sourcesFor(plan);
-  const columns = rounds.length*2-1, step = 260, width = columns*step, height = Math.max(300,plan.size/4*112+110);
+  const columns = rounds.length*2-1, step = 260, width = columns*step, height = Math.max(460,plan.size/4*112+250);
   const nodes = [], edges = [];
   function branch(index, side, depth, leaf) {
     let y;
@@ -103,9 +103,16 @@ function updatePreview() {
     const x1=a.x+(right?layout.cardWidth:0),x2=b.x+(right?0:layout.cardWidth),mid=(x1+x2)/2;
     return `<path d="M${x1},${a.y+35} H${mid} V${b.y+35} H${x2}"/>`;
   }).join('');
+  const finalNode=layout.nodes.find((n)=>n.index===p.size-2);
+  const headings=[...new Set(layout.nodes.filter((n)=>n.index<p.size-2).map((n)=>n.x))].map((x)=>{
+    const node=layout.nodes.find((n)=>n.x===x&&n.index<p.size-2),round=stages(p.size).find((r)=>node.index>=r.offset&&node.index<r.offset+r.count);
+    return `<div class="knockout-stage-label" style="left:${x/layout.width*100}%;width:${layout.cardWidth/layout.width*100}%">${round.name}</div>`;
+  }).join('');
+  const winner=confirmed?savedPlan.results?.[p.size-2]?.winnerId:'';
+  const centerpiece=`<div class="knockout-final-title" style="left:${finalNode.x/layout.width*100}%;top:${finalNode.y-42}px;width:${layout.cardWidth/layout.width*100}%">FINAL</div><div class="knockout-champion" style="left:${finalNode.x/layout.width*100}%;top:${finalNode.y+110}px;width:${layout.cardWidth/layout.width*100}%"><svg viewBox="0 0 100 115" aria-hidden="true"><path d="M27 10H73V38Q73 63 50 69Q27 63 27 38Z" fill="#edc75b"/><path d="M27 20H12V35Q12 55 32 55M73 20H88V35Q88 55 68 55" fill="none" stroke="#d6a632" stroke-width="7"/><path d="M50 68V92M32 97H68M25 106H75" stroke="#d6a632" stroke-width="9"/><path d="M35 18V38Q35 49 41 52" fill="none" stroke="#fff3b7" stroke-width="4"/></svg><small>${winner?'CAMPEÓN':'RUMBO AL TÍTULO'}</small><strong>${winner?esc(teamName(winner)):'Campeón por definir'}</strong></div>`;
   $('#bracket-label').textContent = confirmed ? 'CRUCES OFICIALES' : 'BORRADOR · NO OFICIAL';
   $('#knockout-bracket').classList.add('knockout-tree-scroll');
-  $('#knockout-bracket').innerHTML = `<div class="knockout-tree" style="--tree-width:${layout.width}px;--tree-height:${layout.height}px"><svg viewBox="0 0 ${layout.width} ${layout.height}" preserveAspectRatio="none" aria-hidden="true">${lines}</svg>${layout.nodes.map((node)=>{
+  $('#knockout-bracket').innerHTML = `<div class="knockout-tree" style="--tree-width:${layout.width}px;--tree-height:${layout.height}px"><svg viewBox="0 0 ${layout.width} ${layout.height}" preserveAspectRatio="none" aria-hidden="true">${lines}</svg>${headings}${centerpiece}${layout.nodes.map((node)=>{
     const index=node.index,r=confirmed?savedPlan.results?.[index]:null,ids=confirmed?participants(savedPlan,index):index<p.size/2?[p.pairs[index].homeId,p.pairs[index].awayId]:['',''];
     const placeholders=index===p.size-1?['Perdedor S1','Perdedor S2']:index<p.size/2?['Por definir','Por definir']:p.sources[index].map((n)=>`Ganador ${name(n)}`);
     return `<article class="knockout-tree-match ${index===p.size-2?'knockout-tree-final':''}" style="left:${node.x/layout.width*100}%;top:${node.y}px;width:${layout.cardWidth/layout.width*100}%"><small>${esc(matchLabel(p.size,index))}</small>${ids.map((id,i)=>`<div class="knockout-tree-team"><strong>${esc(id?teamName(id):placeholders[i])}</strong><b>${r?(i===0?r.homeScore:r.awayScore):'–'}</b></div>`).join('')}${r&&r.homeScore===r.awayScore?`<small>Avanza: ${esc(teamName(r.winnerId))}</small>`:''}</article>`;
