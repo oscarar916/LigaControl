@@ -34,17 +34,17 @@ function standings() {
   });
   return Object.values(rows).sort((a,b) => b.pts-a.pts || (b.gf-b.gc)-(a.gf-a.gc) || b.gf-a.gf || b.pg-a.pg || a.team.name.localeCompare(b.team.name));
 }
-function options(selected) {
-  return '<option value="">Seleccionar equipo</option>' + ranked.filter((r) => r.team.status !== 'ELIMINATED').map((r,i) => `<option value="${esc(r.team.id)}" ${r.team.id === selected ? 'selected' : ''}>${i+1}. ${esc(r.team.name)}</option>`).join('');
-}
 function renderEditor(plan) {
   plan.size ||= 8; plan.sources = sourcesFor(plan); $('#knockout-size').value = plan.size;
+  if (!confirmed) {
+    const automatic = seeded(plan.size);
+    plan = { ...plan, sources: automatic.sources, pairs: automatic.pairs.map((p,i) => ({ ...plan.pairs[i], ...p })) };
+  }
   savedPlan = plan;
-  $('#knockout-pairs').innerHTML = plan.pairs.map((p,i) => `<div class="knockout-pair knockout-compact-pair"><span class="knockout-pair-number" title="${matchLabel(plan.size,i)}">${i+1}</span><label class="field"><span class="sr-only">Equipo A del partido ${i+1}</span><select data-home>${options(p.homeId)}</select></label><span class="knockout-vs">vs.</span><label class="field"><span class="sr-only">Equipo B del partido ${i+1}</span><select data-away>${options(p.awayId)}</select></label><details class="knockout-row-schedule"><summary>Horario</summary><div class="knockout-options"><label class="field"><span>Fecha</span><input data-date type="date" value="${esc(p.date || '')}"></label><label class="field"><span>Hora</span><input data-time type="time" value="${esc(p.time || '')}"></label><label class="field"><span>Cancha</span><input data-venue maxlength="200" value="${esc(p.venue || '')}"></label></div></details></div>`).join('');
-  const commonValue = (key) => plan.pairs.every((p) => (p[key] || '') === (plan.pairs[0][key] || '')) ? plan.pairs[0][key] || '' : '';
-  $('#knockout-common-date').value = commonValue('date'); $('#knockout-common-venue').value = commonValue('venue');
+  const label = (id) => { const position = ranked.findIndex((r) => r.team.id === id); return `${position+1}. ${teamName(id)}`; };
+  $('#knockout-pairs').innerHTML = plan.pairs.map((p,i) => `<div class="knockout-pair knockout-fixed-pair"><span class="knockout-pair-number">${i+1}</span><strong>${esc(label(p.homeId))}</strong><span class="knockout-vs">vs.</span><strong>${esc(label(p.awayId))}</strong></div>`).join('');
+  $('#knockout-common-date').value = plan.pairs[0].date || ''; $('#knockout-common-venue').value = plan.pairs[0].venue || ''; $('#knockout-common-time').value = plan.pairs[0].time || '';
   const rounds = stages(plan.size);
-  $('#knockout-routes').innerHTML = rounds.slice(1).map((round,i) => Array.from({length:round.count},(_,j) => { const index = round.offset+j; return `<fieldset><legend>${matchLabel(plan.size,index)}</legend>${plan.sources[index].map((n) => `<label class="field"><span>Ganador de</span><select data-route="${index}">${Array.from({length:rounds[i].count},(_,k) => rounds[i].offset+k).map((x) => `<option value="${x}" ${x === n ? 'selected' : ''}>${matchLabel(plan.size,x)}</option>`).join('')}</select></label>`).join('')}</fieldset>`; }).join('')).join('');
   $('#bracket-context').textContent = `${plan.size} clasificados · ${rounds.map((r) => r.name).join(' → ')}`;
   $('#knockout-tie').value = plan.tieRule || ''; $('#knockout-third').checked = plan.thirdPlace;
   $('#knockout-notes').value = plan.notes || '';
@@ -66,26 +66,52 @@ function renderResults(plan) {
   $('#knockout-result-forms').innerHTML = Array.from({length: plan.thirdPlace ? plan.size : plan.size-1}, (_,i) => {
     const ids = participants(plan,i), r = plan.results?.[i] || plan.pairs[i] || {}, ready = ids.every(Boolean);
     const label = matchLabel(plan.size,i);
-    return `<form data-result="${i}" class="knockout-pair"><h3>${label}: ${esc(teamName(ids[0]))} vs. ${esc(teamName(ids[1]))}</h3><fieldset ${ready ? '' : 'disabled'}><div class="knockout-options"><label class="field"><span>Marcador A</span><input name="homeScore" type="number" min="0" step="1" required value="${esc(r.homeScore ?? '')}"></label><label class="field"><span>Marcador B</span><input name="awayScore" type="number" min="0" step="1" required value="${esc(r.awayScore ?? '')}"></label><label class="field"><span>Ganador si hay empate</span><select name="winnerId"><option value="">Seleccionar</option>${ids.filter(Boolean).map((id) => `<option value="${esc(id)}" ${r.winnerId === id ? 'selected' : ''}>${esc(teamName(id))}</option>`).join('')}</select></label><label class="field"><span>Fecha</span><input name="date" type="date" value="${esc(r.date || '')}"></label><label class="field"><span>Hora</span><input name="time" type="time" value="${esc(r.time || '')}"></label><label class="field"><span>Cancha</span><input name="venue" value="${esc(r.venue || '')}"></label></div><label class="field"><span>Observaciones / resultado del desempate</span><input name="notes" maxlength="2000" value="${esc(r.notes || '')}"></label><button class="secondary-button">${plan.results?.[i] ? 'Corregir resultado' : 'Guardar resultado'}</button></fieldset>${ready ? '' : '<p>Esperando ganadores de la ronda anterior.</p>'}</form>`;
+    return `<form data-result="${i}" class="knockout-pair"><h3>${label}: ${esc(teamName(ids[0]))} vs. ${esc(teamName(ids[1]))}</h3><fieldset ${ready ? '' : 'disabled'}><div class="knockout-options"><label class="field"><span>Marcador A</span><input name="homeScore" type="number" min="0" step="1" required value="${esc(r.homeScore ?? '')}"></label><label class="field"><span>Marcador B</span><input name="awayScore" type="number" min="0" step="1" required value="${esc(r.awayScore ?? '')}"></label><label class="field"><span>Ganador si hay empate</span><select name="winnerId"><option value="">Seleccionar</option>${ids.filter(Boolean).map((id) => `<option value="${esc(id)}" ${r.winnerId === id ? 'selected' : ''}>${esc(teamName(id))}</option>`).join('')}</select></label></div><label class="field"><span>Observaciones / resultado del desempate</span><input name="notes" maxlength="2000" value="${esc(r.notes || '')}"></label><button class="secondary-button">${plan.results?.[i] ? 'Corregir resultado' : 'Guardar resultado'}</button></fieldset>${ready ? '' : '<p>Esperando ganadores de la ronda anterior.</p>'}</form>`;
   }).join('');
 }
 function readPlan() {
-  const pairs = [...document.querySelectorAll('#knockout-pairs .knockout-pair')].map((row) => ({ homeId: row.querySelector('[data-home]').value, awayId: row.querySelector('[data-away]').value, date: row.querySelector('[data-date]').value, time: row.querySelector('[data-time]').value, venue: row.querySelector('[data-venue]').value }));
-  const sources = {};
-  document.querySelectorAll('[data-route]').forEach((el) => { (sources[el.dataset.route] ||= []).push(Number(el.value)); });
+  const date = $('#knockout-common-date').value, venue = $('#knockout-common-venue').value.trim(), time = $('#knockout-common-time').value;
+  const pairs = savedPlan.pairs.map((pair,i) => ({ ...pair, date, venue, time: i === 0 ? time : '' }));
+  const sources = savedPlan.sources;
   return { size: Number($('#knockout-size').value), sources, status: confirmed ? 'CONFIRMED' : 'DRAFT', pairs, tieRule: $('#knockout-tie').value, thirdPlace: $('#knockout-third').checked, notes: $('#knockout-notes').value };
 }
+function bracketLayout(plan) {
+  const rounds = stages(plan.size), final = plan.size-2, sources = sourcesFor(plan);
+  const columns = rounds.length*2-1, step = 260, width = columns*step, height = Math.max(300,plan.size/4*112+110);
+  const nodes = [], edges = [];
+  function branch(index, side, depth, leaf) {
+    let y;
+    if (index < plan.size/2) y = 70 + leaf.value++*112;
+    else {
+      const a=branch(sources[index][0],side,depth+1,leaf), b=branch(sources[index][1],side,depth+1,leaf);
+      y=(a.y+b.y)/2; edges.push({from:a.index,to:index},{from:b.index,to:index});
+    }
+    const column = side === 'left' ? rounds.length-2-depth : rounds.length+depth;
+    const node={index,x:column*step+12,y}; nodes.push(node); return node;
+  }
+  const left=branch(sources[final][0],'left',0,{value:0}),right=branch(sources[final][1],'right',0,{value:0});
+  nodes.push({index:final,x:(rounds.length-1)*step+12,y:(left.y+right.y)/2});
+  edges.push({from:left.index,to:final},{from:right.index,to:final});
+  if(plan.thirdPlace) nodes.push({index:plan.size-1,x:(rounds.length-1)*step+12,y:height-80});
+  return {nodes,edges,width,height,cardWidth:236};
+}
 function updatePreview() {
-  const p = readPlan();
-  const card = (label, a, b, detail = '', index) => {
-    const r = savedPlan?.results?.[index];
-    if (r && confirmed) { const ids = participants(savedPlan,index); a = teamName(ids[0]); b = teamName(ids[1]); }
-    return `<article class="bracket-match"><small>${esc(label)}</small><strong>${esc(a)}</strong><span>${r && confirmed ? `${r.homeScore} – ${r.awayScore}` : 'vs.'}</span><strong>${esc(b)}</strong>${r && confirmed ? `<small>Avanza: ${esc(teamName(r.winnerId))}</small>` : ''}${detail ? `<small>${esc(detail)}</small>` : ''}</article>`;
-  };
+  const p = readPlan(), layout=bracketLayout(p);
+  const name = (index) => { const round=stages(p.size).find((r)=>index>=r.offset&&index<r.offset+r.count); return round ? `${round.count===8?'O':round.count===4?'C':round.count===2?'S':'F'}${index-round.offset+1}` : '3.º'; };
+  const lines=layout.edges.map((edge)=>{
+    const a=layout.nodes.find((n)=>n.index===edge.from),b=layout.nodes.find((n)=>n.index===edge.to),right=a.x<b.x;
+    const x1=a.x+(right?layout.cardWidth:0),x2=b.x+(right?0:layout.cardWidth),mid=(x1+x2)/2;
+    return `<path d="M${x1},${a.y+35} H${mid} V${b.y+35} H${x2}"/>`;
+  }).join('');
   $('#bracket-label').textContent = confirmed ? 'CRUCES OFICIALES' : 'BORRADOR · NO OFICIAL';
-  const rounds = stages(p.size);
-  $('#knockout-bracket').style.setProperty('--bracket-columns', rounds.length);
-  $('#knockout-bracket').innerHTML = rounds.map((round) => `<div><h3>${round.name}</h3>${Array.from({length:round.count},(_,j) => { const i=round.offset+j, r=p.pairs[i]; return r ? card(matchLabel(p.size,i),teamName(r.homeId),teamName(r.awayId),[r.date,r.time,r.venue].filter(Boolean).join(' · '),i) : card(matchLabel(p.size,i),`Ganador ${matchLabel(p.size,p.sources[i][0])}`,`Ganador ${matchLabel(p.size,p.sources[i][1])}`,'',i); }).join('')}${round.count === 1 && p.thirdPlace ? card('Tercer puesto', 'Perdedor semifinal 1','Perdedor semifinal 2','',p.size-1) : ''}</div>`).join('');
+  $('#knockout-bracket').classList.add('knockout-tree-scroll');
+  $('#knockout-bracket').innerHTML = `<div class="knockout-tree" style="--tree-width:${layout.width}px;--tree-height:${layout.height}px"><svg viewBox="0 0 ${layout.width} ${layout.height}" preserveAspectRatio="none" aria-hidden="true">${lines}</svg>${layout.nodes.map((node)=>{
+    const index=node.index,r=confirmed?savedPlan.results?.[index]:null,ids=confirmed?participants(savedPlan,index):index<p.size/2?[p.pairs[index].homeId,p.pairs[index].awayId]:['',''];
+    const placeholders=index===p.size-1?['Perdedor S1','Perdedor S2']:index<p.size/2?['Por definir','Por definir']:p.sources[index].map((n)=>`Ganador ${name(n)}`);
+    return `<article class="knockout-tree-match ${index===p.size-2?'knockout-tree-final':''}" style="left:${node.x/layout.width*100}%;top:${node.y}px;width:${layout.cardWidth/layout.width*100}%"><small>${esc(matchLabel(p.size,index))}</small>${ids.map((id,i)=>`<div class="knockout-tree-team"><strong>${esc(id?teamName(id):placeholders[i])}</strong><b>${r?(i===0?r.homeScore:r.awayScore):'–'}</b></div>`).join('')}${r&&r.homeScore===r.awayScore?`<small>Avanza: ${esc(teamName(r.winnerId))}</small>`:''}</article>`;
+  }).join('')}</div>`;
+  const first=p.pairs[0];
+  $('#bracket-context').textContent = `${p.size} clasificados · ${[first.date,first.time?`Inicio ${first.time}`:'',first.venue].filter(Boolean).join(' · ') || 'Programación por definir'}`;
   $('#bracket-notes').textContent = `Desempate: ${p.tieRule === 'PENALTIES' ? 'Penales' : p.tieRule === 'MANUAL' ? 'Según acuerdo de delegados' : 'Pendiente de reunión'}. ${p.notes}`;
 }
 function seeded(size = Number($('#knockout-size').value)) {
@@ -125,24 +151,13 @@ async function save(confirmPlan) {
 $('#knockout-form').addEventListener('submit', (e) => { e.preventDefault(); save(false); });
 $('#confirm-knockout').addEventListener('click', () => save(true));
 $('#knockout-form').addEventListener('input', (e) => { if (e.target.id !== 'knockout-size') updatePreview(); });
-$('#knockout-pairs').addEventListener('change', () => { $('#knockout-method').value = 'manual'; });
-$('#seed-knockout').addEventListener('click', () => { try { const p = readPlan(), next = seeded(); renderEditor({ ...p, size: next.size, pairs: next.pairs, sources: next.sources }); $('#knockout-method').value = 'seeded'; message('Propuesta regenerada. Guarda el borrador para conservarla.'); } catch(e) { message(e.message,true); } });
-$('#knockout-size').addEventListener('change', () => { try { const p = readPlan(), next = seeded(); renderEditor({...p,...next,tieRule:p.tieRule,thirdPlace:p.thirdPlace,notes:p.notes}); } catch(e) { $('#knockout-size').value = savedPlan.size; message(e.message,true); } });
-$('#knockout-method').addEventListener('change', () => { if ($('#knockout-method').value === 'seeded') $('#seed-knockout').click(); });
+$('#knockout-size').addEventListener('change', () => { try { const p = readPlan(), next = seeded(); next.pairs=next.pairs.map((pair,i)=>({...pair,date:p.pairs[0].date,venue:p.pairs[0].venue,time:i===0?p.pairs[0].time:''})); renderEditor({...p,...next,tieRule:p.tieRule,thirdPlace:p.thirdPlace,notes:p.notes}); } catch(e) { $('#knockout-size').value = savedPlan.size; message(e.message,true); } });
 $('#print-knockout').addEventListener('click', () => window.print());
-$('#apply-knockout-schedule').addEventListener('click', () => {
-  if (confirmed) return;
-  const date = $('#knockout-common-date').value, venue = $('#knockout-common-venue').value.trim();
-  if (!date && !venue) { message('Indica una fecha o una cancha para aplicar.', true); return; }
-  const rows = [...document.querySelectorAll('#knockout-pairs .knockout-pair')];
-  const replaces = rows.some((row) => (date && row.querySelector('[data-date]').value && row.querySelector('[data-date]').value !== date) || (venue && row.querySelector('[data-venue]').value && row.querySelector('[data-venue]').value !== venue));
-  if (replaces && !confirm('¿Reemplazar las fechas o canchas diferentes por estos datos comunes?')) return;
-  rows.forEach((row) => { if(date) row.querySelector('[data-date]').value = date; if(venue) row.querySelector('[data-venue]').value = venue; });
-  updatePreview(); message('Programación aplicada. Guarda el borrador para conservarla.');
-});
 $('#knockout-result-forms').addEventListener('submit', async (e) => {
   e.preventDefault(); if (busy) return;
   const form = e.target, result = Object.fromEntries(new FormData(form));
+  result.date = savedPlan.pairs[0].date || ''; result.venue = savedPlan.pairs[0].venue || '';
+  result.time = Number(form.dataset.result) === 0 ? savedPlan.pairs[0].time || '' : '';
   if (!confirm('¿Guardar este resultado oficial y actualizar el avance de las llaves?')) return;
   busy = true; const button = form.querySelector('button'); button.disabled = true;
   try {
