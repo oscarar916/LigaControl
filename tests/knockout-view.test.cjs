@@ -8,7 +8,8 @@ function view() {
   const fields = {
     '#knockout-size':{value:'8'}, '#knockout-common-date':{value:'2026-10-24'},
     '#knockout-common-venue':{value:'Cancha principal'}, '#knockout-common-time':{value:'14:00'},
-    '#knockout-tie':{value:'PENALTIES'}, '#knockout-third':{checked:true}, '#knockout-notes':{value:''}
+    '#knockout-tie':{value:'PENALTIES'}, '#knockout-third':{checked:true}, '#knockout-notes':{value:''},
+    '#knockout-bracket':{classList:{add:()=>{}},innerHTML:''}, '#bracket-label':{}, '#bracket-context':{}, '#bracket-notes':{}
   };
   const ctx={localStorage:{getItem:()=>''},document:{querySelector:(key)=>fields[key]}};
   vm.createContext(ctx);
@@ -26,6 +27,13 @@ for(const size of [4,8,16]) test(`automatic ${size}-team draw and connected layo
   assert.equal(new Set(layout.nodes.map(n=>n.index)).size,size);
   assert.equal(layout.edges.length,size-2);
   for(const n of layout.nodes) { assert(n.x>=0 && n.x+layout.cardWidth<=layout.width); assert(n.y>=0 && n.y+78<=layout.height); }
+});
+test('preview renders both connected and narrow-screen layouts without dropping teams',()=>{
+  const ctx=view(); vm.runInContext('teams=ranked.map(r=>r.team); savedPlan=seeded(8)',ctx); ctx.updatePreview();
+  const html=ctx.document.querySelector('#knockout-bracket').innerHTML;
+  assert(html.includes('knockout-tree-compact')); assert(html.includes('<path'));
+  for(let i=0;i<8;i++) assert(html.includes(`Equipo ${i}`));
+  assert.equal((html.match(/<article /g)||[]).length,16);
 });
 test('shared day and venue, only first match has a start time',()=>{
   const ctx=view(); vm.runInContext('savedPlan=seeded(8)',ctx);
