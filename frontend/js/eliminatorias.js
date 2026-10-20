@@ -35,12 +35,14 @@ function standings() {
   return Object.values(rows).sort((a,b) => b.pts-a.pts || (b.gf-b.gc)-(a.gf-a.gc) || b.gf-a.gf || b.pg-a.pg || a.team.name.localeCompare(b.team.name));
 }
 function options(selected) {
-  return '<option value="">Seleccionar equipo</option>' + ranked.filter((r) => r.team.status !== 'ELIMINATED').map((r,i) => `<option value="${esc(r.team.id)}" ${r.team.id === selected ? 'selected' : ''}>${i+1}. ${esc(r.team.name)} · ${r.pts} pts.</option>`).join('');
+  return '<option value="">Seleccionar equipo</option>' + ranked.filter((r) => r.team.status !== 'ELIMINATED').map((r,i) => `<option value="${esc(r.team.id)}" ${r.team.id === selected ? 'selected' : ''}>${i+1}. ${esc(r.team.name)}</option>`).join('');
 }
 function renderEditor(plan) {
   plan.size ||= 8; plan.sources = sourcesFor(plan); $('#knockout-size').value = plan.size;
   savedPlan = plan;
-  $('#knockout-pairs').innerHTML = plan.pairs.map((p,i) => `<fieldset class="knockout-pair"><legend>${matchLabel(plan.size,i)}</legend><div class="knockout-options"><label class="field"><span>Equipo A</span><select data-home>${options(p.homeId)}</select></label><strong>vs.</strong><label class="field"><span>Equipo B</span><select data-away>${options(p.awayId)}</select></label></div><div class="knockout-options"><label class="field"><span>Fecha</span><input data-date type="date" value="${esc(p.date || '')}"></label><label class="field"><span>Hora</span><input data-time type="time" value="${esc(p.time || '')}"></label><label class="field"><span>Cancha</span><input data-venue maxlength="200" value="${esc(p.venue || '')}"></label></div></fieldset>`).join('');
+  $('#knockout-pairs').innerHTML = plan.pairs.map((p,i) => `<div class="knockout-pair knockout-compact-pair"><span class="knockout-pair-number" title="${matchLabel(plan.size,i)}">${i+1}</span><label class="field"><span class="sr-only">Equipo A del partido ${i+1}</span><select data-home>${options(p.homeId)}</select></label><span class="knockout-vs">vs.</span><label class="field"><span class="sr-only">Equipo B del partido ${i+1}</span><select data-away>${options(p.awayId)}</select></label><details class="knockout-row-schedule"><summary>Horario</summary><div class="knockout-options"><label class="field"><span>Fecha</span><input data-date type="date" value="${esc(p.date || '')}"></label><label class="field"><span>Hora</span><input data-time type="time" value="${esc(p.time || '')}"></label><label class="field"><span>Cancha</span><input data-venue maxlength="200" value="${esc(p.venue || '')}"></label></div></details></div>`).join('');
+  const commonValue = (key) => plan.pairs.every((p) => (p[key] || '') === (plan.pairs[0][key] || '')) ? plan.pairs[0][key] || '' : '';
+  $('#knockout-common-date').value = commonValue('date'); $('#knockout-common-venue').value = commonValue('venue');
   const rounds = stages(plan.size);
   $('#knockout-routes').innerHTML = rounds.slice(1).map((round,i) => Array.from({length:round.count},(_,j) => { const index = round.offset+j; return `<fieldset><legend>${matchLabel(plan.size,index)}</legend>${plan.sources[index].map((n) => `<label class="field"><span>Ganador de</span><select data-route="${index}">${Array.from({length:rounds[i].count},(_,k) => rounds[i].offset+k).map((x) => `<option value="${x}" ${x === n ? 'selected' : ''}>${matchLabel(plan.size,x)}</option>`).join('')}</select></label>`).join('')}</fieldset>`; }).join('')).join('');
   $('#bracket-context').textContent = `${plan.size} clasificados · ${rounds.map((r) => r.name).join(' → ')}`;
@@ -108,8 +110,8 @@ async function save(confirmPlan) {
     const plan = readPlan(); validate(plan);
     if (confirmPlan) {
       if (!matches.length || matches.some((m) => !m.roundLocked)) throw new Error('Primero cierra todas las fechas de grupos.');
-      if (!plan.tieRule) throw new Error('Define el desempate acordado en la reunión.');
-      if (plan.tieRule === 'MANUAL' && !plan.notes.trim()) throw new Error('Escribe el acuerdo de desempate en las observaciones.');
+      if (!plan.tieRule) { $('#knockout-rules').open = true; $('#knockout-tie').focus(); throw new Error('Elige el desempate en «Reglas y opciones» antes de confirmar.'); }
+      if (plan.tieRule === 'MANUAL' && !plan.notes.trim()) { $('#knockout-rules').open = true; $('#knockout-notes').focus(); throw new Error('Escribe el acuerdo de desempate en las observaciones.'); }
       if (!confirm('¿Confirmar estos cruces como oficiales? Dejarán de ser editables en este módulo.')) return;
       plan.status = 'CONFIRMED';
     }
@@ -128,6 +130,16 @@ $('#seed-knockout').addEventListener('click', () => { try { const p = readPlan()
 $('#knockout-size').addEventListener('change', () => { try { const p = readPlan(), next = seeded(); renderEditor({...p,...next,tieRule:p.tieRule,thirdPlace:p.thirdPlace,notes:p.notes}); } catch(e) { $('#knockout-size').value = savedPlan.size; message(e.message,true); } });
 $('#knockout-method').addEventListener('change', () => { if ($('#knockout-method').value === 'seeded') $('#seed-knockout').click(); });
 $('#print-knockout').addEventListener('click', () => window.print());
+$('#apply-knockout-schedule').addEventListener('click', () => {
+  if (confirmed) return;
+  const date = $('#knockout-common-date').value, venue = $('#knockout-common-venue').value.trim();
+  if (!date && !venue) { message('Indica una fecha o una cancha para aplicar.', true); return; }
+  const rows = [...document.querySelectorAll('#knockout-pairs .knockout-pair')];
+  const replaces = rows.some((row) => (date && row.querySelector('[data-date]').value && row.querySelector('[data-date]').value !== date) || (venue && row.querySelector('[data-venue]').value && row.querySelector('[data-venue]').value !== venue));
+  if (replaces && !confirm('¿Reemplazar las fechas o canchas diferentes por estos datos comunes?')) return;
+  rows.forEach((row) => { if(date) row.querySelector('[data-date]').value = date; if(venue) row.querySelector('[data-venue]').value = venue; });
+  updatePreview(); message('Programación aplicada. Guarda el borrador para conservarla.');
+});
 $('#knockout-result-forms').addEventListener('submit', async (e) => {
   e.preventDefault(); if (busy) return;
   const form = e.target, result = Object.fromEntries(new FormData(form));

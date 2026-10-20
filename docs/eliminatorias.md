@@ -10,6 +10,8 @@ Agregar `backend/KnockoutService.gs` al proyecto de Apps Script, actualizar `Api
 
 ## Uso
 
+La pantalla principal muestra una fila por cruce. «Programar partidos» aplica una fecha y cancha comunes sin cambiar las horas. «Horario» permite excepciones por partido. «Reglas y opciones» reúne desempate, tercer puesto y edición del recorrido. El guardado usa el mismo formato de datos y no exige volver a actualizar Apps Script para este cambio visual.
+
 1. Abrir Eliminatorias. Se calcula una propuesta desde la tabla de grupos sin guardarla.
 2. Elegir manualmente equipos y rutas si lo acuerdan los delegados, programar cuartos y guardar borrador.
 3. Cerrar todas las fechas de grupos, acordar desempate y confirmar las llaves.
