@@ -10,6 +10,8 @@ Agregar `backend/KnockoutService.gs` al proyecto de Apps Script, actualizar `Api
 
 ## Uso
 
+Las flechas ↑ y ↓ cambian el orden de juego de los cruces de la primera ronda, manteniendo los enfrentamientos por posición y las rutas de la llave. Se guarda en el mismo arreglo `pairs` del backend existente, sin requerir una actualización de Apps Script. La hora de inicio siempre corresponde al primer partido del orden elegido. El orden queda fijado al confirmar las eliminatorias.
+
 La pantalla principal muestra equipos fijos por posición (1–último, 2–penúltimo). Un borrador se recalcula desde la tabla al abrirlo; las llaves confirmadas se conservan. La programación del día pide fecha, cancha y una sola hora de inicio: se guarda en el primer partido y los demás no tienen hora estimada. La vista muestra las conexiones de ambas mitades hacia la final central. «Reglas y opciones» reúne desempate y tercer puesto. Se mantiene el formato de datos del backend existente, sin nueva actualización de Apps Script.
 
 1. Abrir Eliminatorias. Se calcula una propuesta desde la tabla de grupos sin guardarla.

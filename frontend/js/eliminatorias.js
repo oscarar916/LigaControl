@@ -34,15 +34,30 @@ function standings() {
   });
   return Object.values(rows).sort((a,b) => b.pts-a.pts || (b.gf-b.gc)-(a.gf-a.gc) || b.gf-a.gf || b.pg-a.pg || a.team.name.localeCompare(b.team.name));
 }
+function orderedSeededPlan(plan, automatic) {
+  const key = (p) => `${p.homeId}:${p.awayId}`;
+  const canonical = automatic.pairs.map(key), previous = plan.pairs.map(key);
+  const valid = previous.length === canonical.length && new Set(previous).size === canonical.length && previous.every((k)=>canonical.includes(k));
+  const order = valid ? previous.map((k)=>canonical.indexOf(k)) : canonical.map((_,i)=>i);
+  const remap = Object.fromEntries(order.map((original,index)=>[original,index]));
+  const sources = Object.fromEntries(Object.entries(automatic.sources).map(([index,pair])=>[index,pair.map((n)=>n<automatic.pairs.length?remap[n]:n)]));
+  return {...plan,sources,pairs:order.map((original,i)=>({...plan.pairs[i],...automatic.pairs[original]}))};
+}
+function moveOpeningMatch(plan, from, to) {
+  if (from<0 || to<0 || from>=plan.pairs.length || to>=plan.pairs.length) return plan;
+  const pairs=plan.pairs.slice(),time=plan.pairs[0].time || '';
+  [pairs[from],pairs[to]]=[pairs[to],pairs[from]];
+  return {...plan,pairs:pairs.map((p,i)=>({...p,time:i===0?time:''})),sources:Object.fromEntries(Object.entries(plan.sources).map(([index,pair])=>[index,pair.map((n)=>n===from?to:n===to?from:n)]))};
+}
 function renderEditor(plan) {
   plan.size ||= 8; plan.sources = sourcesFor(plan); $('#knockout-size').value = plan.size;
   if (!confirmed) {
     const automatic = seeded(plan.size);
-    plan = { ...plan, sources: automatic.sources, pairs: automatic.pairs.map((p,i) => ({ ...plan.pairs[i], ...p })) };
+    plan = orderedSeededPlan(plan, automatic);
   }
   savedPlan = plan;
   const label = (id) => { const position = ranked.findIndex((r) => r.team.id === id); return `${position+1}. ${teamName(id)}`; };
-  $('#knockout-pairs').innerHTML = plan.pairs.map((p,i) => `<div class="knockout-pair knockout-fixed-pair"><span class="knockout-pair-number">${i+1}</span><strong>${esc(label(p.homeId))}</strong><span class="knockout-vs">vs.</span><strong>${esc(label(p.awayId))}</strong></div>`).join('');
+  $('#knockout-pairs').innerHTML = plan.pairs.map((p,i) => `<div class="knockout-pair knockout-fixed-pair"><span class="knockout-pair-number" title="Orden de juego">${i+1}</span><strong>${esc(label(p.homeId))}</strong><span class="knockout-vs">vs.</span><strong>${esc(label(p.awayId))}</strong>${confirmed?'':`<div class="knockout-order-actions"><button type="button" data-move="${i}" data-direction="-1" aria-label="Subir partido ${i+1}" ${i===0?'disabled':''}>↑</button><button type="button" data-move="${i}" data-direction="1" aria-label="Bajar partido ${i+1}" ${i===plan.pairs.length-1?'disabled':''}>↓</button></div>`}</div>`).join('');
   $('#knockout-common-date').value = plan.pairs[0].date || ''; $('#knockout-common-venue').value = plan.pairs[0].venue || ''; $('#knockout-common-time').value = plan.pairs[0].time || '';
   const rounds = stages(plan.size);
   $('#bracket-context').textContent = `${plan.size} clasificados · ${rounds.map((r) => r.name).join(' → ')}`;
@@ -50,6 +65,7 @@ function renderEditor(plan) {
   $('#knockout-notes').value = plan.notes || '';
   $('#knockout-state').textContent = confirmed ? 'Cruces oficiales confirmados. Solo consulta.' : 'Borrador editable · pendiente de aprobación de delegados';
   $('#knockout-form').querySelectorAll('input,select,textarea,button').forEach((el) => { el.disabled = confirmed; });
+  if(!confirmed) $('#knockout-pairs').querySelectorAll('[data-move]').forEach((button)=>{const destination=Number(button.dataset.move)+Number(button.dataset.direction);button.disabled=destination<0||destination>=plan.pairs.length;});
   updatePreview();
   renderResults(plan);
 }
@@ -160,6 +176,12 @@ async function save(confirmPlan) {
 }
 $('#knockout-form').addEventListener('submit', (e) => { e.preventDefault(); save(false); });
 $('#confirm-knockout').addEventListener('click', () => save(true));
+$('#knockout-pairs').addEventListener('click', (e)=>{
+  const button=e.target.closest('[data-move]'); if(!button||confirmed||busy) return;
+  const from=Number(button.dataset.move),to=from+Number(button.dataset.direction);
+  renderEditor(moveOpeningMatch(readPlan(),from,to));
+  message('Orden de juego actualizado. Guarda el borrador para conservarlo.');
+});
 $('#knockout-form').addEventListener('input', (e) => { if (e.target.id !== 'knockout-size') updatePreview(); });
 $('#knockout-size').addEventListener('change', () => { try { const p = readPlan(), next = seeded(); next.pairs=next.pairs.map((pair,i)=>({...pair,date:p.pairs[0].date,venue:p.pairs[0].venue,time:i===0?p.pairs[0].time:''})); renderEditor({...p,...next,tieRule:p.tieRule,thirdPlace:p.thirdPlace,notes:p.notes}); } catch(e) { $('#knockout-size').value = savedPlan.size; message(e.message,true); } });
 $('#print-knockout').addEventListener('click', () => window.print());

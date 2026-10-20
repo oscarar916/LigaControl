@@ -40,3 +40,17 @@ test('shared day and venue, only first match has a start time',()=>{
   const p=ctx.readPlan(); assert.equal(p.pairs.length,4);
   p.pairs.forEach((r,i)=>{assert.equal(r.date,'2026-10-24');assert.equal(r.venue,'Cancha principal');assert.equal(r.time,i===0?'14:00':'');});
 });
+test('moving a match preserves its bracket path and survives draft reload',()=>{
+  const ctx=view(); const original=vm.runInContext('seeded(8)',ctx);
+  original.pairs=original.pairs.map((p,i)=>({...p,date:'2026-10-24',venue:'Cancha',time:i===0?'14:00':''}));
+  const moved=ctx.moveOpeningMatch(original,0,1);
+  assert.equal(moved.pairs[0].homeId,'t1'); assert.equal(moved.pairs[1].homeId,'t0');
+  assert.equal(moved.pairs[0].time,'14:00'); assert.equal(moved.pairs[1].time,'');
+  const reload=ctx.orderedSeededPlan(JSON.parse(JSON.stringify(moved)),original);
+  assert.equal(reload.pairs[0].homeId,'t1'); assert.equal(reload.pairs[1].homeId,'t0');
+  for(const semi of [4,5]) {
+    const before=original.sources[semi].map(i=>original.pairs[i].homeId).join(',');
+    const after=reload.sources[semi].map(i=>reload.pairs[i].homeId).join(',');
+    assert.equal(after,before);
+  }
+});
