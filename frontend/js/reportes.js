@@ -1,5 +1,6 @@
 ﻿import { apiGet } from './api.js';
 
+import { groupSuspensionDoesNotCarry, resetSuspensionLabel } from './discipline-policy.js';
 const championshipId = localStorage.getItem('ligaControlChampionshipId') || '';
 const disciplineId = localStorage.getItem('ligaControlDisciplineId') || '';
 const content = document.querySelector('#report-content');
@@ -202,7 +203,7 @@ function renderCards() {
     const rows = items.map((item) => {
       const payment = paymentSummary(item); const round = roundForSanction(item); const suspension = Number(item.suspensionMatches || 0);
       const card = item.type === 'YELLOW_CARD' ? '🟨 Amarilla' : item.type === 'DOUBLE_YELLOW' ? '🟨🟥 Doble amarilla' : item.type === 'RED_CARD' ? '🟥 Roja directa' : '⛔ Expulsión';
-      const suspensionCell = suspension ? `<strong>${suspension} fecha${suspension === 1 ? '' : 's'}</strong><small>${esc(item.reason || 'Suspensión disciplinaria')}</small>` : 'Sin suspensión';
+      const suspensionCell = groupSuspensionDoesNotCarry(item, events, matches) ? resetSuspensionLabel(item) : suspension ? `<strong>${suspension} fecha${suspension === 1 ? '' : 's'}</strong><small>${esc(item.reason || 'Suspensión disciplinaria')}</small>` : 'Sin suspensión';
       return `<tr><td><strong>${esc(playerName(item.playerId))}</strong></td><td>${round ? `Fecha ${round}` : 'Sin fecha'}</td><td>${card}</td><td class="suspension-cell">${suspensionCell}</td><td><strong>S/ ${Number(payment?.amount || item.amount || 0).toFixed(2)}</strong></td><td><span class="badge pending-badge">Pendiente</span></td></tr>`;
     });
     return `<section class="sanction-team-card"><header><div><small>Equipo</small><h3>${esc(team.name)}</h3></div><div class="sanction-team-summary"><span>${items.length} sanción(es)</span><span class="sanction-team-amount">Pendiente: <strong>S/ ${total.toFixed(2)}</strong></span></div></header>${table(['Jugador', 'Fecha', 'Tarjeta', 'Suspensión', 'Monto', 'Pago'], rows, '')}</section>`;

@@ -1,5 +1,6 @@
 import { apiDelete, apiGet, apiGetFresh, apiPost, apiPut } from './api.js?v=20261001-3';
 
+import { groupSuspensionDoesNotCarry, resetSuspensionLabel } from './discipline-policy.js';
 const championshipId = localStorage.getItem('ligaControlChampionshipId') || '';
 const disciplineId = localStorage.getItem('ligaControlDisciplineId') || '';
 const matchList = document.querySelector('#result-match-list');
@@ -165,8 +166,9 @@ function renderSanctions() {
   const body = document.querySelector('#sanctions-body');
   const paymentFor = sanctionId => payments.find(payment => payment.sanctionId === sanctionId);
   const suspensionText = sanction => {
-    const matches = Number(sanction.suspensionMatches || 0);
-    if (!matches) return 'Sin suspensión';
+    if (groupSuspensionDoesNotCarry(sanction, events, matches)) return resetSuspensionLabel(sanction);
+    const suspensionDates = Number(sanction.suspensionMatches || 0);
+    if (!suspensionDates) return 'Sin suspensión';
     const reason = sanction.reason && sanction.reason !== 'Tarjeta amarilla'
       ? sanction.reason
       : sanction.type === 'YELLOW_CARD'
@@ -174,7 +176,7 @@ function renderSanctions() {
         : sanction.type === 'RED_CARD'
           ? 'Tarjeta roja directa'
           : 'Expulsión';
-    return `<strong>${matches} fecha${matches === 1 ? '' : 's'}</strong><small>${esc(reason)}</small>`;
+    return `<strong>${suspensionDates} fecha${suspensionDates === 1 ? '' : 's'}</strong><small>${esc(reason)}</small>`;
   };
   body.innerHTML = sanctions.length ? sanctions.map(sanction => {
     const player = players.find(item => item.id === sanction.playerId);

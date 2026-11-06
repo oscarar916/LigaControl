@@ -2,6 +2,7 @@
 
 import { apiGetFresh } from './api.js';
 
+import { groupSuspensionDoesNotCarry, resetSuspensionLabel } from './discipline-policy.js';
 const params = new URLSearchParams(location.search);
 const publicHomeRequested = params.get('home') === '1' || (!params.has('championshipId') && !params.has('disciplineId'));
 let championshipId = publicHomeRequested ? '' : (params.get('championshipId') || localStorage.getItem('ligaControlChampionshipId') || '');
@@ -26,8 +27,9 @@ const championshipDisplayName = () => {
   return year && !name.includes(year) ? `${name} ${year}` : name;
 };
 function suspensionText(sanction) {
-  const matches = Number(sanction.suspensionMatches || 0);
-  if (!matches) return 'Sin suspensión';
+  if (groupSuspensionDoesNotCarry(sanction, events, matches)) return resetSuspensionLabel(sanction);
+  const suspensionDates = Number(sanction.suspensionMatches || 0);
+  if (!suspensionDates) return 'Sin suspensión';
   const reason = sanction.reason && sanction.reason !== 'Tarjeta amarilla'
     ? sanction.reason
     : sanction.type === 'YELLOW_CARD'
@@ -35,7 +37,7 @@ function suspensionText(sanction) {
       : sanction.type === 'RED_CARD'
         ? 'Tarjeta roja directa'
         : 'Expulsión';
-  return `<strong>${matches} fecha${matches === 1 ? '' : 's'}</strong><small>${esc(reason)}</small>`;
+  return `<strong>${suspensionDates} fecha${suspensionDates === 1 ? '' : 's'}</strong><small>${esc(reason)}</small>`;
 }
 const dateText = (value) => { if (!value) return 'Fecha pendiente'; const date = new Date(`${String(value).slice(0, 10)}T00:00:00`); return Number.isNaN(date.getTime()) ? String(value).slice(0, 10) : new Intl.DateTimeFormat('es-PE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(date); };
 const timeText = (value) => { if (!value) return 'Hora pendiente'; const match = String(value).match(/T(\d{2}):(\d{2})/); return match ? `${match[1]}:${match[2]}` : String(value).slice(0, 5); };
