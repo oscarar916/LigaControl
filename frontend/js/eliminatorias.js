@@ -5,6 +5,7 @@ const disciplineId = localStorage.getItem('ligaControlDisciplineId') || '';
 const $ = (selector) => document.querySelector(selector);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 let teams = [], matches = [], ranked = [], revision = '', confirmed = false, busy = false, savedPlan = null;
+let activeResultStage = null;
 const teamName = (id) => teams.find((t) => t.id === id)?.name || 'Por definir';
 const message = (text, error = false) => { $('#knockout-status').textContent = text; $('#knockout-status').className = `form-status ${error ? 'error-message' : 'success-message'}`; };
 function stages(size) {
@@ -79,11 +80,33 @@ function participants(plan, index) {
 function renderResults(plan) {
   $('#knockout-results').hidden = !confirmed;
   if (!confirmed) return;
-  $('#knockout-result-forms').innerHTML = Array.from({length: plan.thirdPlace ? plan.size : plan.size-1}, (_,i) => {
-    const ids = participants(plan,i), r = plan.results?.[i] || plan.pairs[i] || {}, ready = ids.every(Boolean);
-    const label = matchLabel(plan.size,i);
-    return `<form data-result="${i}" class="knockout-pair"><h3>${label}: ${esc(teamName(ids[0]))} vs. ${esc(teamName(ids[1]))}</h3><fieldset ${ready ? '' : 'disabled'}><div class="knockout-options"><label class="field"><span>Marcador A</span><input name="homeScore" type="number" min="0" step="1" required value="${esc(r.homeScore ?? '')}"></label><label class="field"><span>Marcador B</span><input name="awayScore" type="number" min="0" step="1" required value="${esc(r.awayScore ?? '')}"></label><label class="field"><span>Ganador si hay empate</span><select name="winnerId"><option value="">Seleccionar</option>${ids.filter(Boolean).map((id) => `<option value="${esc(id)}" ${r.winnerId === id ? 'selected' : ''}>${esc(teamName(id))}</option>`).join('')}</select></label></div><label class="field"><span>Observaciones / resultado del desempate</span><input name="notes" maxlength="2000" value="${esc(r.notes || '')}"></label><button class="secondary-button">${plan.results?.[i] ? 'Corregir resultado' : 'Guardar resultado'}</button></fieldset>${ready ? '' : '<p>Esperando ganadores de la ronda anterior.</p>'}</form>`;
+  const rounds = stages(plan.size).concat(plan.thirdPlace ? [{offset:plan.size-1,count:1,name:'Tercer puesto'}] : []);
+  if (!rounds.some((r)=>r.offset===activeResultStage)) activeResultStage=(rounds.find((r)=>Array.from({length:r.count},(_,j)=>r.offset+j).some((i)=>!plan.results?.[i])) || rounds[rounds.length-1]).offset;
+  $('#knockout-result-tabs').innerHTML=rounds.map((r)=>{
+    const completed=Array.from({length:r.count},(_,j)=>plan.results?.[r.offset+j]).filter(Boolean).length;
+    return `<button type="button" data-result-stage="${r.offset}" aria-pressed="${r.offset===activeResultStage}" class="${r.offset===activeResultStage?'active':''}">${r.name} <small>${completed}/${r.count}</small></button>`;
   }).join('');
+  $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${Array.from({length:r.count},(_,j)=>resultCard(plan,r.offset+j)).join('')}</div>`).join('');
+}
+function resultCard(plan,index) {
+  const ids=participants(plan,index), r=plan.results?.[index], ready=ids.every(Boolean), label=matchLabel(plan.size,index);
+  if(!ready) return `<article class="knockout-result-card waiting"><header><strong>${esc(label)}</strong><span class="badge">En espera</span></header><p class="muted">Esperando los ganadores de la ronda anterior.</p></article>`;
+  const tie=Boolean(r && r.homeScore===r.awayScore);
+  return `<form data-result="${index}" class="knockout-result-card"><header><strong>${esc(label)}</strong><span data-result-state class="badge ${r?'paid-badge':'pending-badge'}">${r?'Guardado':'Pendiente'}</span></header><div class="knockout-scoreboard"><label class="knockout-score-team"><strong>${esc(teamName(ids[0]))}</strong><input aria-label="Marcador de ${esc(teamName(ids[0]))}" name="homeScore" type="number" inputmode="numeric" min="0" step="1" required placeholder="—" value="${esc(r?.homeScore ?? '')}"></label><span class="knockout-score-vs">–</span><label class="knockout-score-team"><strong>${esc(teamName(ids[1]))}</strong><input aria-label="Marcador de ${esc(teamName(ids[1]))}" name="awayScore" type="number" inputmode="numeric" min="0" step="1" required placeholder="—" value="${esc(r?.awayScore ?? '')}"></label></div><div data-tie-controls ${tie?'':'hidden'}><label class="field"><span>¿Quién ganó el desempate?</span><select name="winnerId" ${tie?'required':''}><option value="">Seleccionar ganador</option>${ids.map((id)=>`<option value="${esc(id)}" ${r?.winnerId===id?'selected':''}>${esc(teamName(id))}</option>`).join('')}</select></label></div><details data-result-notes class="knockout-result-notes" ${tie||r?.notes?'open':''}><summary>Observaciones${tie?' y definición del empate':' (opcional)'}</summary><label class="field"><span data-notes-label>${tie?'Explica la definición, por ejemplo: penales 4–3':'Comentario del partido'}</span><input name="notes" maxlength="2000" ${tie?'required':''} value="${esc(r?.notes || '')}"></label></details><footer><p data-winner-preview aria-live="polite">${r?`Ganador: ${esc(teamName(r.winnerId))}`:'Completa ambos marcadores.'}</p><button class="action-button" type="submit">${r?'Guardar cambios':'Guardar resultado'}</button></footer><p data-result-feedback class="form-status" role="status"></p></form>`;
+}
+function syncResultForm(form) {
+  const home=form.elements.homeScore,away=form.elements.awayScore,select=form.elements.winnerId,notes=form.elements.notes;
+  const complete=home.value!=='' && away.value!=='' && home.validity.valid && away.validity.valid;
+  const tie=complete && Number(home.value)===Number(away.value);
+  form.querySelector('[data-tie-controls]').hidden=!tie; select.required=tie; notes.required=tie;
+  const detail=form.querySelector('[data-result-notes]'); if(tie) detail.open=true;
+  detail.querySelector('summary').textContent=tie?'Definición del empate':'Observaciones (opcional)';
+  form.querySelector('[data-notes-label]').textContent=tie?'Explica la definición, por ejemplo: penales 4–3':'Comentario del partido';
+  const ids=participants(savedPlan,Number(form.dataset.result));
+  const winner=complete?(tie?select.value:Number(home.value)>Number(away.value)?ids[0]:ids[1]):'';
+  form.querySelector('[data-winner-preview]').textContent=!complete?'Completa ambos marcadores.':winner?`Ganador al guardar: ${teamName(winner)}`:'Empate: indica quién ganó la definición.';
+  form.querySelector('[data-result-state]').textContent='Sin guardar';
+  form.querySelector('[data-result-state]').className='badge pending-badge';
 }
 function readPlan() {
   const date = $('#knockout-common-date').value, venue = $('#knockout-common-venue').value.trim(), time = $('#knockout-common-time').value;
@@ -185,18 +208,28 @@ $('#knockout-pairs').addEventListener('click', (e)=>{
 $('#knockout-form').addEventListener('input', (e) => { if (e.target.id !== 'knockout-size') updatePreview(); });
 $('#knockout-size').addEventListener('change', () => { try { const p = readPlan(), next = seeded(); next.pairs=next.pairs.map((pair,i)=>({...pair,date:p.pairs[0].date,venue:p.pairs[0].venue,time:i===0?p.pairs[0].time:''})); renderEditor({...p,...next,tieRule:p.tieRule,thirdPlace:p.thirdPlace,notes:p.notes}); } catch(e) { $('#knockout-size').value = savedPlan.size; message(e.message,true); } });
 $('#print-knockout').addEventListener('click', () => window.print());
+$('#knockout-result-tabs').addEventListener('click',(e)=>{
+  const button=e.target.closest('[data-result-stage]'); if(!button||busy) return;
+  activeResultStage=Number(button.dataset.resultStage);
+  $('#knockout-result-tabs').querySelectorAll('[data-result-stage]').forEach((el)=>{ const active=Number(el.dataset.resultStage)===activeResultStage; el.classList.toggle('active',active); el.setAttribute('aria-pressed',String(active)); });
+  $('#knockout-result-forms').querySelectorAll('[data-result-panel]').forEach((el)=>{el.hidden=Number(el.dataset.resultPanel)!==activeResultStage;});
+});
+$('#knockout-result-forms').addEventListener('input',(e)=>{const form=e.target.closest('[data-result]'); if(form) syncResultForm(form);});
+$('#knockout-result-forms').addEventListener('change',(e)=>{const form=e.target.closest('[data-result]'); if(form) syncResultForm(form);});
 $('#knockout-result-forms').addEventListener('submit', async (e) => {
   e.preventDefault(); if (busy) return;
   const form = e.target, result = Object.fromEntries(new FormData(form));
   result.date = savedPlan.pairs[0].date || ''; result.venue = savedPlan.pairs[0].venue || '';
   result.time = Number(form.dataset.result) === 0 ? savedPlan.pairs[0].time || '' : '';
   if (!confirm('¿Guardar este resultado oficial y actualizar el avance de las llaves?')) return;
-  busy = true; const button = form.querySelector('button'); button.disabled = true;
+  busy = true; const button = form.querySelector('button'), originalText=button.textContent; button.disabled = true; button.textContent='Guardando…';
+  $('#knockout-result-forms').inert=true;
   try {
     const response = await apiPost('/api/knockouts', { championshipId, disciplineId, revision, action: 'result', matchIndex: Number(form.dataset.result), result });
     revision = response.data.revision; renderEditor(response.data); message('Resultado guardado y llaves actualizadas.');
-  } catch(e) { message(e.message,true); button.disabled = false; }
-  finally { busy = false; }
+    const feedback=$(`#knockout-result-forms [data-result="${form.dataset.result}"] [data-result-feedback]`); if(feedback) {feedback.textContent='Resultado guardado. Llaves actualizadas.'; feedback.className='form-status success-message';}
+  } catch(e) { message(e.message,true); const feedback=form.querySelector('[data-result-feedback]'); feedback.textContent=e.message;feedback.className='form-status error-message';button.disabled = false;button.textContent=originalText; }
+  finally { busy = false; $('#knockout-result-forms').inert=false; }
 });
 async function load() {
   try {

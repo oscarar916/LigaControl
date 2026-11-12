@@ -9,7 +9,8 @@ function view() {
     '#knockout-size':{value:'8'}, '#knockout-common-date':{value:'2026-10-24'},
     '#knockout-common-venue':{value:'Cancha principal'}, '#knockout-common-time':{value:'14:00'},
     '#knockout-tie':{value:'PENALTIES'}, '#knockout-third':{checked:true}, '#knockout-notes':{value:''},
-    '#knockout-bracket':{classList:{add:()=>{}},innerHTML:''}, '#bracket-label':{}, '#bracket-context':{}, '#bracket-notes':{}
+    '#knockout-bracket':{classList:{add:()=>{}},innerHTML:''}, '#bracket-label':{}, '#bracket-context':{}, '#bracket-notes':{},
+    '#knockout-results':{}, '#knockout-result-tabs':{}, '#knockout-result-forms':{}
   };
   const ctx={localStorage:{getItem:()=>''},document:{querySelector:(key)=>fields[key]}};
   vm.createContext(ctx);
@@ -27,6 +28,36 @@ for(const size of [4,8,16]) test(`automatic ${size}-team draw and connected layo
   assert.equal(new Set(layout.nodes.map(n=>n.index)).size,size);
   assert.equal(layout.edges.length,size-2);
   for(const n of layout.nodes) { assert(n.x>=0 && n.x+layout.cardWidth<=layout.width); assert(n.y>=0 && n.y+78<=layout.height); }
+});
+test('result cards distinguish pending, saved ties and waiting matches',()=>{
+  const ctx=view(); vm.runInContext('teams=ranked.map(r=>r.team)',ctx);
+  const plan=vm.runInContext('seeded(8)',ctx);
+  const pending=ctx.resultCard(plan,0);
+  assert(pending.includes('Equipo 0')); assert(pending.includes('Equipo 7'));
+  assert(pending.includes('data-tie-controls hidden')); assert(pending.includes('Guardar resultado'));
+  const waiting=ctx.resultCard(plan,4); assert(waiting.includes('En espera')); assert(!waiting.includes('<input'));
+  plan.results={0:{homeScore:2,awayScore:2,winnerId:'t7',notes:'Penales 3–4'}};
+  const saved=ctx.resultCard(plan,0); assert(saved.includes('Guardado')); assert(saved.includes('Guardar cambios')); assert(saved.includes('select name="winnerId" required')); assert(!saved.includes('data-tie-controls hidden'));
+});
+test('result rounds show progress and keep only one panel visible',()=>{
+  const ctx=view(); vm.runInContext('confirmed=true; teams=ranked.map(r=>r.team)',ctx);
+  ctx.renderResults(vm.runInContext('seeded(8)',ctx));
+  const tabs=ctx.document.querySelector('#knockout-result-tabs').innerHTML;
+  const panels=ctx.document.querySelector('#knockout-result-forms').innerHTML;
+  assert(tabs.includes('0/4')); assert(tabs.includes('0/2'));
+  assert(panels.includes('data-result-panel="0" >')); assert(panels.includes('data-result-panel="4" hidden'));
+});
+test('tie fields are required only for a complete tied score',()=>{
+  const ctx=view(); vm.runInContext('teams=ranked.map(r=>r.team); savedPlan=seeded(8)',ctx);
+  const controls={};
+  for(const key of ['[data-tie-controls]','[data-result-notes]','[data-notes-label]','[data-winner-preview]','[data-result-state]']) controls[key]={};
+  controls['[data-result-notes]'].querySelector=()=>({});
+  const form={dataset:{result:'0'},elements:{homeScore:{value:'',validity:{valid:true}},awayScore:{value:'',validity:{valid:true}},winnerId:{value:''},notes:{}},querySelector:(key)=>controls[key]};
+  ctx.syncResultForm(form); assert.equal(controls['[data-tie-controls]'].hidden,true); assert.equal(form.elements.notes.required,false);
+  form.elements.homeScore.value='0';form.elements.awayScore.value='0';
+  ctx.syncResultForm(form); assert.equal(controls['[data-tie-controls]'].hidden,false); assert.equal(form.elements.winnerId.required,true); assert.equal(form.elements.notes.required,true);
+  form.elements.homeScore.value='3';form.elements.awayScore.value='1';
+  ctx.syncResultForm(form); assert.equal(controls['[data-tie-controls]'].hidden,true); assert.equal(form.elements.notes.required,false);assert(controls['[data-winner-preview]'].textContent.includes('Equipo 0'));
 });
 test('preview renders both connected and narrow-screen layouts without dropping teams',()=>{
   const ctx=view(); vm.runInContext('teams=ranked.map(r=>r.team); savedPlan=seeded(8)',ctx); ctx.updatePreview();
