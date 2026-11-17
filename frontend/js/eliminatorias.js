@@ -65,6 +65,12 @@ function renderEditor(plan) {
   $('#knockout-tie').value = plan.tieRule || ''; $('#knockout-third').checked = plan.thirdPlace;
   $('#knockout-notes').value = plan.notes || '';
   $('#knockout-state').textContent = confirmed ? 'Cruces oficiales confirmados. Solo consulta.' : 'Borrador editable · pendiente de aprobación de delegados';
+  $('#knockout-editor-title').textContent = confirmed ? rounds[0].name : 'Preparar los cruces';
+  $('.knockout-main-options').hidden = confirmed;
+  $('#knockout-order-help').hidden = confirmed;
+  $('#knockout-draft-actions').hidden = confirmed;
+  $('#knockout-register-results').hidden = !confirmed;
+  $('#knockout-schedule').open = false;
   $('#knockout-form').querySelectorAll('input,select,textarea,button').forEach((el) => { el.disabled = confirmed; });
   if(!confirmed) $('#knockout-pairs').querySelectorAll('[data-move]').forEach((button)=>{const destination=Number(button.dataset.move)+Number(button.dataset.direction);button.disabled=destination<0||destination>=plan.pairs.length;});
   updatePreview();
