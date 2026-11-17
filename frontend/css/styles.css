@@ -342,6 +342,12 @@ a { color: inherit; text-decoration: none; } button { font: inherit; }
 .results-phase-tabs { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; }
 #knockout-editor [hidden] { display: none !important; }
 #knockout-register-results { margin-top: 18px; }
+.knockout-round-program { margin-top: 1rem; }
+.knockout-round-program fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
+.knockout-program-list { list-style: none; padding: 0; display: grid; gap: .6rem; margin: 1.2rem 0 0; }
+.knockout-program-list li { display: grid; grid-template-columns: 95px minmax(0,1fr) auto minmax(0,1fr); gap: .8rem; align-items: center; border: 1px solid var(--color-border); border-radius: 10px; padding: .8rem; }
+.knockout-program-list li strong:first-of-type { text-align: right; }
+@media (max-width: 600px) { .knockout-program-list li { grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); } .knockout-program-list .badge { grid-column: 1 / -1; justify-self: start; } }
 .knockout-score-stack { display: grid; justify-items: center; gap: .35rem; }
 .knockout-score-stack > b { padding: .5rem .7rem; border-radius: 10px; background: var(--color-primary-light); color: var(--color-primary); font-size: 1.5rem; white-space: nowrap; }
 .knockout-penalty-score { font-size: .85rem; font-weight: 700; color: var(--color-primary); white-space: nowrap; }

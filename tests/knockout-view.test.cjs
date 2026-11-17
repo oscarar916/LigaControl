@@ -45,7 +45,7 @@ test('result rounds show progress and keep only one panel visible',()=>{
   ctx.renderResults(vm.runInContext('seeded(8)',ctx));
   const tabs=ctx.document.querySelector('#knockout-result-tabs').innerHTML;
   const panels=ctx.document.querySelector('#knockout-result-forms').innerHTML;
-  assert(tabs.includes('0/4')); assert(tabs.includes('0/2'));
+  assert(tabs.includes('Cuartos de final')); assert(tabs.includes('Semifinales')); assert(!tabs.includes('0/4'));
   assert(panels.includes('data-result-panel="0" >')); assert(panels.includes('data-result-panel="4" hidden'));
   assert(panels.includes('data-round-schedule="4"'));
   assert(!panels.includes('knockout-result-card'));

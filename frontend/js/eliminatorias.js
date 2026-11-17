@@ -78,6 +78,7 @@ function renderEditor(plan) {
   if(!confirmed) $('#knockout-pairs').querySelectorAll('[data-move]').forEach((button)=>{const destination=Number(button.dataset.move)+Number(button.dataset.direction);button.disabled=destination<0||destination>=plan.pairs.length;});
   updatePreview();
   renderResults(plan);
+  $('#knockout-editor').hidden = confirmed;
 }
 function participants(plan, index) {
   const size = plan.size || 8;
@@ -92,14 +93,15 @@ function renderResults(plan) {
   const rounds = stages(plan.size).concat(plan.thirdPlace ? [{offset:plan.size-1,count:1,name:'Tercer puesto'}] : []);
   if (!rounds.some((r)=>r.offset===activeResultStage)) activeResultStage=(rounds.find((r)=>Array.from({length:r.count},(_,j)=>r.offset+j).some((i)=>!plan.results?.[i])) || rounds[rounds.length-1]).offset;
   $('#knockout-result-tabs').innerHTML=rounds.map((r)=>{
-    const completed=Array.from({length:r.count},(_,j)=>plan.results?.[r.offset+j]).filter(Boolean).length;
-    return `<button type="button" data-result-stage="${r.offset}" aria-pressed="${r.offset===activeResultStage}" class="${r.offset===activeResultStage?'active':''}">${r.name} <small>${completed}/${r.count}</small></button>`;
+    return `<button type="button" data-result-stage="${r.offset}" aria-pressed="${r.offset===activeResultStage}" class="${r.offset===activeResultStage?'active':''}">${r.name}</button>`;
   }).join('');
   $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${roundScheduleForm(plan,r)}</div>`).join('');
 }
 function roundScheduleForm(plan,round) {
   const schedule=plan.schedules?.[round.offset] || (round.offset===0?plan.pairs[0]:{}) || {};
-  return `<details class="knockout-settings"><summary>Programar ${esc(round.name)} <small>Fecha, hora de inicio y cancha</small></summary><form data-round-schedule="${round.offset}"><div class="knockout-options"><label class="field"><span>Fecha</span><input name="date" type="date" value="${esc(schedule.date || '')}"></label><label class="field"><span>Inicio del primer partido</span><input name="time" type="time" value="${esc(schedule.time || '')}"></label><label class="field"><span>Cancha</span><input name="venue" maxlength="200" value="${esc(schedule.venue || '')}"></label></div><p class="muted">Se aplica solo a esta ronda. Los demás partidos continúan en orden. No modifica marcadores ni actas.</p><button class="secondary-button" type="submit">Guardar programación</button><span role="status" class="form-status"></span></form></details>`;
+  const finished=Array.from({length:round.count},(_,j)=>plan.results?.[round.offset+j]).every(Boolean);
+  const rows=Array.from({length:round.count},(_,j)=>{const ids=participants(plan,round.offset+j);return `<li><span class="badge">Partido ${j+1}</span><strong>${esc(ids[0]?teamName(ids[0]):'Por definir')}</strong><span class="muted">vs.</span><strong>${esc(ids[1]?teamName(ids[1]):'Por definir')}</strong></li>`;}).join('');
+  return `<div class="knockout-round-program"><h3>${esc(round.name)}${finished?' · Finalizada':''}</h3><form data-round-schedule="${round.offset}"><fieldset ${finished?'disabled':''}><div class="knockout-options"><label class="field"><span>Fecha de la ronda</span><input name="date" type="date" value="${esc(schedule.date || '')}"></label><label class="field"><span>Hora del primer partido</span><input name="time" type="time" value="${esc(schedule.time || '')}"></label><label class="field"><span>Cancha</span><input name="venue" maxlength="200" placeholder="Por definir" value="${esc(schedule.venue || '')}"></label></div>${finished?'<p class="muted">Esta ronda ya finalizó. Consulta sus actas en Resultados.</p>':'<p class="muted">Una fecha y cancha para esta ronda. Los partidos continúan en el orden indicado.</p><button class="action-button" type="submit">Guardar programación</button>'}</fieldset><span role="status" class="form-status"></span></form><ol class="knockout-program-list">${rows}</ol></div>`;
 }
 $('#knockout-result-forms').addEventListener('submit',async event=>{
   const form=event.target.closest('[data-round-schedule]');if(!form)return;event.preventDefault();
@@ -230,8 +232,9 @@ async function load() {
     try { plan = (await apiGetFresh('/api/knockouts', { championshipId, disciplineId })).data; }
     catch(e) { throw new Error('Publica el backend actualizado con KnockoutService.gs para habilitar el guardado de eliminatorias. ' + e.message); }
     revision = plan?.revision || ''; confirmed = plan?.status === 'CONFIRMED';
-    renderEditor(plan || seeded()); $('#knockout-editor').hidden = false;
-    message(plan ? 'Llaves recuperadas.' : 'Propuesta inicial sin guardar. Revisa los cruces antes de guardar el borrador.');
+    renderEditor(plan || seeded()); $('#knockout-editor').hidden = confirmed;
+    $('.knockout-preview').before($('#knockout-results'));
+    message(plan ? '' : 'Revisa los cruces y guarda el borrador para comenzar.');
   } catch(e) { message(e.message, true); }
 }
 load();
