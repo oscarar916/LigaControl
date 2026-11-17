@@ -17,6 +17,7 @@ const standingsMatches = () => {
   return finished.filter((match) => !match.automaticWalkover || Number(match.round || 0) <= currentRound);
 };
 const paymentFor = (sanctionId) => payments.find((payment) => payment.sanctionId === sanctionId);
+const roundName = (round) => matches.find((match) => String(match.round) === String(round) && match.roundLabel)?.roundLabel || (round ? `Fecha ${round}` : 'Sin fecha');
 function paymentsForSanction(sanction) {
   const ids = sanction.sourceSanctionIds || [sanction.id];
   return payments.filter((payment) => ids.includes(payment.sanctionId));
@@ -68,7 +69,7 @@ function pendingPaymentDetail(items) {
   if (!items.length) return '<span class="badge paid-badge">Sin deuda</span>';
   const rounds = [...new Set(items.map(roundForSanction).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
   const label = items.length === 1 ? '1 multa pendiente' : `${items.length} multas pendientes`;
-  const detail = rounds.length ? `Fecha${rounds.length === 1 ? '' : 's'} ${rounds.join(', ')}` : 'Fecha no identificada';
+  const detail = rounds.length ? rounds.map(roundName).join(', ') : 'Ronda no identificada';
   return `<div class="pending-payment-detail"><strong>S/ ${items.reduce((sum, sanction) => sum + pendingAmountForSanction(sanction), 0).toFixed(2)}</strong><span>${esc(label)}</span><small>${esc(detail)}</small></div>`;
 }
 function suspensionTextForSanctions(items) {
@@ -204,7 +205,7 @@ function renderCards() {
       const payment = paymentSummary(item); const round = roundForSanction(item); const suspension = Number(item.suspensionMatches || 0);
       const card = item.type === 'YELLOW_CARD' ? '🟨 Amarilla' : item.type === 'DOUBLE_YELLOW' ? '🟨🟥 Doble amarilla' : item.type === 'RED_CARD' ? '🟥 Roja directa' : '⛔ Expulsión';
       const suspensionCell = groupSuspensionDoesNotCarry(item, events, matches) ? resetSuspensionLabel(item) : suspension ? `<strong>${suspension} fecha${suspension === 1 ? '' : 's'}</strong><small>${esc(item.reason || 'Suspensión disciplinaria')}</small>` : 'Sin suspensión';
-      return `<tr><td><strong>${esc(playerName(item.playerId))}</strong></td><td>${round ? `Fecha ${round}` : 'Sin fecha'}</td><td>${card}</td><td class="suspension-cell">${suspensionCell}</td><td><strong>S/ ${Number(payment?.amount || item.amount || 0).toFixed(2)}</strong></td><td><span class="badge pending-badge">Pendiente</span></td></tr>`;
+      return `<tr><td><strong>${esc(playerName(item.playerId))}</strong></td><td>${esc(roundName(round))}</td><td>${card}</td><td class="suspension-cell">${suspensionCell}</td><td><strong>S/ ${Number(payment?.amount || item.amount || 0).toFixed(2)}</strong></td><td><span class="badge pending-badge">Pendiente</span></td></tr>`;
     });
     return `<section class="sanction-team-card"><header><div><small>Equipo</small><h3>${esc(team.name)}</h3></div><div class="sanction-team-summary"><span>${items.length} sanción(es)</span><span class="sanction-team-amount">Pendiente: <strong>S/ ${total.toFixed(2)}</strong></span></div></header>${table(['Jugador', 'Fecha', 'Tarjeta', 'Suspensión', 'Monto', 'Pago'], rows, '')}</section>`;
   }).join('')}</div>`;
