@@ -19,6 +19,15 @@ test('knockout link selects a dedicated tab and excludes group fixtures',()=>{
   assert.equal(field('#knockout-acta-entry').hidden,true);assert(field('#result-round').innerHTML.includes('Fecha 11'));assert(!field('#result-round').innerHTML.includes('Cuartos'));
   assert(field('#result-match-list').innerHTML.includes('data-match-id="group"'));assert(!field('#result-match-list').innerHTML.includes('data-match-id="ko"'));
 });
+test('penalty score is rendered in the actual result card below the main score',()=>{
+  const {ctx,field}=setup();
+  vm.runInContext("Object.assign(matches.find(m=>m.id==='ko'),{homeScore:2,awayScore:2,winnerId:'b',knockoutTieNotes:'Penales: 1–2'})",ctx);
+  ctx.renderResultNavigation();ctx.renderMatches();
+  const html=field('#result-match-list').innerHTML;
+  assert.match(html,/class="result-knockout-decision"/);
+  assert.match(html,/\(1 - 2\)/);
+  assert.match(html,/Clasificó KO B/);
+});
 test('confirmed knockout matches are initialized once when the tab is opened',async()=>{
   const {ctx}=setup();let calls=0;
   vm.runInContext("matches=matches.filter(isGroupMatch);backendActasSupported=true;knockoutPlan={status:'CONFIRMED'}",ctx);
