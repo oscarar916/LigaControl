@@ -410,6 +410,12 @@ async function openSheet(match) {
   document.querySelector('#acta-knockout-winner').innerHTML = `<option value="">Seleccionar ganador del desempate</option><option value="${match.homeId}">${esc(teamName(match.homeId))}</option><option value="${match.awayId}">${esc(teamName(match.awayId))}</option>`;
   document.querySelector('#acta-knockout-winner').value = match.winnerId || '';
   document.querySelector('#acta-knockout-tie-notes').value = match.knockoutTieNotes || '';
+  const penalties = /^Penales: (\d+)–(\d+)(?:\. (.*))?$/.exec(match.knockoutTieNotes || '');
+  document.querySelector('#acta-penalty-home').value = penalties?.[1] || '';
+  document.querySelector('#acta-penalty-away').value = penalties?.[2] || '';
+  document.querySelector('#penalty-home-label').textContent = `Penales: ${teamName(match.homeId)}`;
+  document.querySelector('#penalty-away-label').textContent = `Penales: ${teamName(match.awayId)}`;
+  if (penalties) document.querySelector('#acta-knockout-tie-notes').value = penalties[3] || '';
   modal.showModal();
 }
 
@@ -598,6 +604,15 @@ scoreForm.addEventListener('submit', async event => {
   button.disabled = true;
   try {
     const knockoutFields=activeMatch.phase==='KNOCKOUT'?{knockoutWinnerId:document.querySelector('#acta-knockout-winner').value,knockoutTieNotes:document.querySelector('#acta-knockout-tie-notes').value}:{};
+    if (activeMatch.phase === 'KNOCKOUT') {
+      const ph = document.querySelector('#acta-penalty-home').value, pa = document.querySelector('#acta-penalty-away').value;
+      if (ph !== '' || pa !== '') {
+        if (Number(values.homeScore) !== Number(values.awayScore)) throw new Error('Los penales solo corresponden a un partido empatado.');
+        if (ph === '' || pa === '' || !Number.isInteger(Number(ph)) || !Number.isInteger(Number(pa)) || Number(ph) < 0 || Number(pa) < 0 || Number(ph) === Number(pa)) throw new Error('Completa ambos penales con números enteros: la definición no puede quedar empatada.');
+        knockoutFields.knockoutWinnerId = Number(ph) > Number(pa) ? activeMatch.homeId : activeMatch.awayId;
+        knockoutFields.knockoutTieNotes = `Penales: ${Number(ph)}–${Number(pa)}${knockoutFields.knockoutTieNotes.trim() ? '. ' + knockoutFields.knockoutTieNotes.trim() : ''}`;
+      }
+    }
     if(activeMatch.phase==='KNOCKOUT'&&Number(values.homeScore)===Number(values.awayScore)&&(!knockoutFields.knockoutWinnerId||!knockoutFields.knockoutTieNotes.trim())) throw new Error('El partido está empatado: indica el ganador y explica la definición en «Desempate de eliminatorias».');
     const [minuteResponse, matchResponse] = await Promise.all([
       apiPost('/api/minutes', { matchId: activeMatch.id, observations: notesForm.elements.observations.value, homeLineup: lineupDraft.home, awayLineup: lineupDraft.away }),

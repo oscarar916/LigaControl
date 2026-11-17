@@ -92,7 +92,7 @@ function renderResults(plan) {
     const completed=Array.from({length:r.count},(_,j)=>plan.results?.[r.offset+j]).filter(Boolean).length;
     return `<button type="button" data-result-stage="${r.offset}" aria-pressed="${r.offset===activeResultStage}" class="${r.offset===activeResultStage?'active':''}">${r.name} <small>${completed}/${r.count}</small></button>`;
   }).join('');
-  $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${Array.from({length:r.count},(_,j)=>resultCard(plan,r.offset+j)).join('')}</div>`).join('');
+  $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${Array.from({length:r.count},(_,j)=>{const index=r.offset+j, result=plan.results?.[index]; return resultCard(plan,index).replace('</footer>', `${result && Number(result.homeScore)===Number(result.awayScore) && result.notes ? `<p class="knockout-penalties">${esc(result.notes)}</p>` : ''}</footer>`);}).join('')}</div>`).join('');
 }
 function resultCard(plan,index) {
   const ids=participants(plan,index), r=plan.results?.[index], matchId=plan.matchIds?.[index], ready=ids.every(Boolean);
