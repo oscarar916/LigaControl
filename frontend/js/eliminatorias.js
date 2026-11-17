@@ -95,7 +95,7 @@ function renderResults(plan) {
     const completed=Array.from({length:r.count},(_,j)=>plan.results?.[r.offset+j]).filter(Boolean).length;
     return `<button type="button" data-result-stage="${r.offset}" aria-pressed="${r.offset===activeResultStage}" class="${r.offset===activeResultStage?'active':''}">${r.name} <small>${completed}/${r.count}</small></button>`;
   }).join('');
-  $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${roundScheduleForm(plan,r)}${Array.from({length:r.count},(_,j)=>resultCard(plan,r.offset+j)).join('')}</div>`).join('');
+  $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${roundScheduleForm(plan,r)}</div>`).join('');
 }
 function roundScheduleForm(plan,round) {
   const schedule=plan.schedules?.[round.offset] || (round.offset===0?plan.pairs[0]:{}) || {};

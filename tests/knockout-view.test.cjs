@@ -47,6 +47,8 @@ test('result rounds show progress and keep only one panel visible',()=>{
   const panels=ctx.document.querySelector('#knockout-result-forms').innerHTML;
   assert(tabs.includes('0/4')); assert(tabs.includes('0/2'));
   assert(panels.includes('data-result-panel="0" >')); assert(panels.includes('data-result-panel="4" hidden'));
+  assert(panels.includes('data-round-schedule="4"'));
+  assert(!panels.includes('knockout-result-card'));
 });
 test('preview renders both connected and narrow-screen layouts without dropping teams',()=>{
   const ctx=view(); vm.runInContext('teams=ranked.map(r=>r.team); savedPlan=seeded(8)',ctx); ctx.updatePreview();
