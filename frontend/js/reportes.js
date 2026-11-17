@@ -218,6 +218,12 @@ function reportMatchOrder(a, b) {
   if (timeA !== timeB) return timeA ? -1 : 1;
   return Number(a.order || 0) - Number(b.order || 0);
 }
+function reportTieDecision(match) {
+  if (match.phase !== 'KNOCKOUT' || match.homeScore === '' || match.awayScore === '' || Number(match.homeScore) !== Number(match.awayScore) || !match.winnerId) return '';
+  const notes = String(match.knockoutTieNotes || '').trim();
+  const penalties = /penal/i.test(notes);
+  return `<div class="report-match-decision"><strong>${esc(teamName(match.winnerId))} ganó ${penalties ? 'por penales' : 'el desempate'}</strong>${notes ? `<span>${esc(notes)}</span>` : ''}</div>`;
+}
 function renderMatchesByRound() {
   const rounds = [...new Set(matches.map((match) => Number(match.round)))].sort((a, b) => a - b);
   if (!rounds.length) return '<div class="empty-state compact">Todavía no hay partidos programados.</div>';
@@ -228,7 +234,7 @@ function renderMatchesByRound() {
       const finished = match.closed || match.status === 'FINISHED' || match.roundLocked;
       const score = finished && match.homeScore !== '' && match.awayScore !== '' ? `${match.homeScore} – ${match.awayScore}${match.isWalkover ? ' W.O.' : ''}` : 'VS';
       const time = match.automaticWalkover ? 'W.O. reglamentario' : String(match.time || '').slice(0, 5) || (isVolley() && index > 0 ? 'A continuación' : 'Hora pendiente');
-      return `<div class="report-match-row"><strong class="report-match-order">${index + 1}.</strong><span class="report-match-time">${esc(time)}</span><span class="report-match-team home">${esc(teamName(match.homeId))}</span><b class="report-match-score">${esc(score)}</b><span class="report-match-team">${esc(teamName(match.awayId))}</span><em>${finished ? 'Finalizado' : 'Programado'}</em></div>`;
+      return `<div class="report-match-row"><strong class="report-match-order">${index + 1}.</strong><span class="report-match-time">${esc(time)}</span><span class="report-match-team home">${esc(teamName(match.homeId))}</span><b class="report-match-score">${esc(score)}</b><span class="report-match-team">${esc(teamName(match.awayId))}</span><em>${finished ? 'Finalizado' : 'Programado'}</em>${finished ? reportTieDecision(match) : ''}</div>`;
     }).join('');
     return `<section class="report-round-card"><header><h3>${esc(first?.roundLabel || `Fecha ${round}`)}</h3><span>${first?.date ? esc(String(first.date).slice(0, 10)) : 'Fecha pendiente'}${first?.venue ? ` · ${esc(first.venue)}` : ''}</span></header>${rows}</section>`;
   }).join('')}</div>`;
