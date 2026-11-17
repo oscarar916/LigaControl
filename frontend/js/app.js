@@ -1,10 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
   const nav = document.querySelector('.championship-sidebar nav');
-  if (nav && !nav.querySelector('a[href="eliminatorias.html"]')) {
-    const link = document.createElement('a');
-    link.href = 'eliminatorias.html'; link.textContent = 'Eliminatorias';
-    const results = nav.querySelector('a[href="resultados.html"]');
-    if (results) results.after(link); else nav.append(link);
+  if (nav) {
+    nav.querySelectorAll('a[href="eliminatorias.html"]').forEach(link => link.remove());
+    if (location.pathname.endsWith('/eliminatorias.html')) nav.querySelector('a[href="partidos.html"]')?.classList.add('active');
   }
   const toggle = document.querySelector('[data-theme-toggle]');
   const saved = localStorage.getItem('ligacontrol-theme');
