@@ -95,7 +95,7 @@ function renderResults(plan) {
     const completed=Array.from({length:r.count},(_,j)=>plan.results?.[r.offset+j]).filter(Boolean).length;
     return `<button type="button" data-result-stage="${r.offset}" aria-pressed="${r.offset===activeResultStage}" class="${r.offset===activeResultStage?'active':''}">${r.name} <small>${completed}/${r.count}</small></button>`;
   }).join('');
-  $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${roundScheduleForm(plan,r)}${Array.from({length:r.count},(_,j)=>{const index=r.offset+j, result=plan.results?.[index]; return resultCard(plan,index).replace('</footer>', `${result && Number(result.homeScore)===Number(result.awayScore) && result.notes ? `<p class="knockout-penalties">${esc(result.notes)}</p>` : ''}</footer>`);}).join('')}</div>`).join('');
+  $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${roundScheduleForm(plan,r)}${Array.from({length:r.count},(_,j)=>resultCard(plan,r.offset+j)).join('')}</div>`).join('');
 }
 function roundScheduleForm(plan,round) {
   const schedule=plan.schedules?.[round.offset] || (round.offset===0?plan.pairs[0]:{}) || {};
@@ -108,9 +108,9 @@ $('#knockout-result-forms').addEventListener('submit',async event=>{
   catch(error){status.textContent=error.message;}finally{button.disabled=false;}
 });
 function resultCard(plan,index) {
-  const ids=participants(plan,index), r=plan.results?.[index], matchId=plan.matchIds?.[index], ready=ids.every(Boolean);
-  const link=`resultados.html?phase=knockout${matchId?'&matchId='+encodeURIComponent(matchId):''}`;
-  return `<article class="knockout-result-card"><header><strong>${esc(matchLabel(plan.size,index))}</strong><span class="badge ${r?'paid-badge':'pending-badge'}">${r?'Guardado':ready?'Pendiente':'En espera'}</span></header><div class="knockout-scoreboard"><strong>${esc(ids[0]?teamName(ids[0]):'Por definir')}</strong><b>${r?r.homeScore+' – '+r.awayScore:'vs.'}</b><strong>${esc(ids[1]?teamName(ids[1]):'Por definir')}</strong></div><footer><p>${r?'Ganador: '+esc(teamName(r.winnerId)):ready?'Registra jugadores, goles y tarjetas en el acta.':'Esperando los ganadores de la ronda anterior.'}</p><a class="secondary-button" href="${esc(link)}">${matchId?'Abrir acta en Resultados':'Ir a Resultados'}</a></footer></article>`;
+  const ids=participants(plan,index), r=plan.results?.[index], ready=ids.every(Boolean);
+  const penalties=r && Number(r.homeScore)===Number(r.awayScore) ? /penal[^\d]*(\d+)\s*[–—−-]\s*(\d+)/i.exec(r.notes || '') : null;
+  return `<article class="knockout-result-card"><header><strong>${esc(matchLabel(plan.size,index))}</strong><span class="badge ${r?'paid-badge':'pending-badge'}">${r?'Guardado':ready?'Pendiente':'En espera'}</span></header><div class="knockout-scoreboard"><strong>${esc(ids[0]?teamName(ids[0]):'Por definir')}</strong><div class="knockout-score-stack"><b>${r?r.homeScore+' – '+r.awayScore:'vs.'}</b>${penalties?`<small class="knockout-penalty-score" aria-label="Penales ${penalties[1]} a ${penalties[2]}">(${penalties[1]} – ${penalties[2]})</small>`:''}</div><strong>${esc(ids[1]?teamName(ids[1]):'Por definir')}</strong></div><footer><p>${r?'Ganador: '+esc(teamName(r.winnerId)):ready?'Partido pendiente.':'Esperando los ganadores de la ronda anterior.'}</p></footer></article>`;
 }
 function readPlan() {
   const date = $('#knockout-common-date').value, venue = $('#knockout-common-venue').value.trim(), time = $('#knockout-common-time').value;

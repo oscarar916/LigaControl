@@ -34,11 +34,11 @@ test('result cards distinguish pending, saved ties and waiting matches',()=>{
   const plan=vm.runInContext('seeded(8)',ctx);
   const pending=ctx.resultCard(plan,0);
   assert(pending.includes('Equipo 0')); assert(pending.includes('Equipo 7'));
-  assert(pending.includes('resultados.html?phase=knockout')); assert(!pending.includes('<input'));
+  assert(!pending.includes('resultados.html?phase=knockout')); assert(!pending.includes('<input'));
   const waiting=ctx.resultCard(plan,4); assert(waiting.includes('En espera')); assert(!waiting.includes('<input'));
   plan.results={0:{homeScore:2,awayScore:2,winnerId:'t7',notes:'Penales 3–4'}};
   plan.matchIds={0:'match-0'};
-  const saved=ctx.resultCard(plan,0); assert(saved.includes('Guardado')); assert(saved.includes('Abrir acta en Resultados')); assert(saved.includes('matchId=match-0')); assert(!saved.includes('<form'));
+  const saved=ctx.resultCard(plan,0); assert(saved.includes('Guardado')); assert(!saved.includes('Abrir acta')); assert(!saved.includes('matchId=')); assert(saved.includes('(3 – 4)')); assert(!saved.includes('<form'));
 });
 test('result rounds show progress and keep only one panel visible',()=>{
   const ctx=view(); vm.runInContext('confirmed=true; teams=ranked.map(r=>r.team)',ctx);
