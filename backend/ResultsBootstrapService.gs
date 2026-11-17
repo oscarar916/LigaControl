@@ -18,6 +18,7 @@ var ResultsBootstrapService = {
     var sanctions = listSheetRecords(SHEETS.SANCTIONS).filter(function (item) { return String(item.campeonato_id) === championshipId && String(item.estado) !== 'INACTIVE'; }).map(toSanctionResponse);
     var payments = listSheetRecords(SHEETS.PAYMENTS).filter(function (item) { return String(item.campeonato_id) === championshipId && String(item.estado) !== 'INACTIVE'; }).map(toPaymentResponse);
 
-    return { championships: championships, disciplines: disciplines, teams: teams, matches: matches, players: players, events: events, minutes: minutes, sanctions: sanctions, payments: payments };
+    var knockout = knockoutRecord(championshipId,disciplineId);
+    return { championships: championships, disciplines: disciplines, teams: teams, matches: matches, players: players, events: events, minutes: minutes, sanctions: sanctions, payments: payments, knockoutActasSupported:true, knockoutPlan:knockout?knockoutPlanWithActas(knockout):null };
   }
 };

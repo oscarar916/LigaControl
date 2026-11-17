@@ -24,4 +24,4 @@ La pantalla principal muestra equipos fijos por posición (1–último, 2–pen�
 
 Los cruces confirmados son inmutables en esta versión. Se pueden corregir marcadores, pero cambiar un ganador queda bloqueado si la siguiente ronda ya tiene resultados. La revisión evita sobrescribir datos de otra pestaña; si hay conflicto, recargar la página.
 
-Los resultados eliminatorios se almacenan separados del fixture de grupos y no suman puntos a la tabla. Este primer módulo no registra actas individuales, tarjetas, goleadores ni sanciones de eliminatorias, y tampoco publica las llaves en la vista pública. No se deben cargar estos partidos como jornadas adicionales de grupos.
+Los resultados eliminatorios se registran en Resultados mediante las actas habituales. Los partidos se identifican como fase KNOCKOUT y no suman puntos a la tabla de grupos. Los goles y tarjetas se registran en sus eventos, conservando la separación de acumulaciones entre fases. Véase `docs/knockout-actas.md` para actualizar el backend y habilitar la integración.

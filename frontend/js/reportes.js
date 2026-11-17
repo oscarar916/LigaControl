@@ -12,7 +12,7 @@ const teamName = (id) => teams.find((team) => team.id === id)?.name || 'Equipo';
 const playerName = (id) => players.find((player) => player.id === id)?.fullName || 'Jugador';
 const activeMatches = () => matches.filter((match) => match.closed || match.status === 'FINISHED');
 const standingsMatches = () => {
-  const finished = activeMatches();
+  const finished = activeMatches().filter((m)=>!m.phase || m.phase==='GROUP');
   const currentRound = finished.filter((match) => !match.automaticWalkover).reduce((latest, match) => Math.max(latest, Number(match.round || 0)), 0);
   return finished.filter((match) => !match.automaticWalkover || Number(match.round || 0) <= currentRound);
 };
@@ -229,7 +229,7 @@ function renderMatchesByRound() {
       const time = match.automaticWalkover ? 'W.O. reglamentario' : String(match.time || '').slice(0, 5) || (isVolley() && index > 0 ? 'A continuación' : 'Hora pendiente');
       return `<div class="report-match-row"><strong class="report-match-order">${index + 1}.</strong><span class="report-match-time">${esc(time)}</span><span class="report-match-team home">${esc(teamName(match.homeId))}</span><b class="report-match-score">${esc(score)}</b><span class="report-match-team">${esc(teamName(match.awayId))}</span><em>${finished ? 'Finalizado' : 'Programado'}</em></div>`;
     }).join('');
-    return `<section class="report-round-card"><header><h3>Fecha ${round}</h3><span>${first?.date ? esc(String(first.date).slice(0, 10)) : 'Fecha pendiente'}${first?.venue ? ` · ${esc(first.venue)}` : ''}</span></header>${rows}</section>`;
+    return `<section class="report-round-card"><header><h3>${esc(first?.roundLabel || `Fecha ${round}`)}</h3><span>${first?.date ? esc(String(first.date).slice(0, 10)) : 'Fecha pendiente'}${first?.venue ? ` · ${esc(first.venue)}` : ''}</span></header>${rows}</section>`;
   }).join('')}</div>`;
 }
 

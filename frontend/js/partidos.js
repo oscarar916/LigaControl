@@ -209,7 +209,7 @@ async function initialize() {
     document.querySelector('#print-championship-name').textContent = championship?.name || 'Campeonato';
     document.querySelector('#print-discipline-name').textContent = discipline?.name || 'Deporte';
     document.querySelector('#fixture-team-count').textContent = `${teams.length} equipos`;
-    const saved = matchesResponse.data.items.filter((item) => item.championshipId === championshipId && item.disciplineId === disciplineId);
+    const saved = matchesResponse.data.items.filter((item) => item.championshipId === championshipId && item.disciplineId === disciplineId && (!item.phase || item.phase === 'GROUP'));
     if (saved.length) {
       const grouped = Object.groupBy ? Object.groupBy(saved, (item) => item.round) : saved.reduce((acc, item) => ((acc[item.round] ||= []).push(item), acc), {});
       rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b).map((number) => ({ number, matches: orderAdministrativeMatchesFirst(grouped[number]), byeTeamId: teams.find((team) => !grouped[number].some((match) => match.homeId === team.id || match.awayId === team.id))?.id || '' }));

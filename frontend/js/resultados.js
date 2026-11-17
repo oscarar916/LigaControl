@@ -13,7 +13,18 @@ const quickPlayerModal = document.querySelector('#quick-player-modal');
 const quickPlayerForm = document.querySelector('#quick-player-form');
 let teams = [], matches = [], players = [], events = [], minutes = [], sanctions = [], payments = [], currentDiscipline = null, activeMatch, lineupDraft = { home: [], away: [] };
 let currentRoundNumber = 0;
+let knockoutPlan = null;
+let preferKnockoutRound = new URLSearchParams(location.search).get('phase') === 'knockout';
+let requestedMatchOpened = false;
+const isGroupMatch = (match) => !match.phase || match.phase === 'GROUP';
+const roundName = (round) => matches.find((m)=>m.round===Number(round))?.roundLabel || `Fecha ${round}`;
 const loadedMinuteMatchIds = new Set();
+document.querySelector('#sync-knockout-actas').addEventListener('click',async(event)=>{
+  const button=event.currentTarget; button.disabled=true;
+  const hint=document.querySelector('#knockout-acta-hint'); hint.textContent='Preparando partidos y actas de eliminatorias…';
+  try { await apiPost('/api/knockouts',{championshipId,disciplineId,action:'syncMatches'});preferKnockoutRound=true;await load(); }
+  catch(error){hint.textContent=error.message;button.disabled=false;}
+});
 
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
 const teamName = id => teams.find(team => team.id === id)?.name || 'Equipo';
@@ -43,11 +54,12 @@ function calendarRound() {
 function updateCurrentRoundHint() {
   const hint = document.querySelector('#current-round-hint');
   const selected = Number(roundSelect.value);
-  hint.textContent = currentRoundNumber ? (selected === currentRoundNumber ? `Fecha ${currentRoundNumber} · jornada actual` : `Jornada actual: Fecha ${currentRoundNumber}`) : '';
+  hint.textContent = currentRoundNumber ? (selected === currentRoundNumber ? `${roundName(currentRoundNumber)} · ronda actual` : `Ronda actual: ${roundName(currentRoundNumber)}`) : '';
   hint.className = `current-round-hint${selected === currentRoundNumber ? ' active' : ''}`;
 }
 
 function matchWinnerId(match) {
+  if (match.phase === 'KNOCKOUT' && match.winnerId) return match.winnerId;
   if (match.homeScore === '' || match.awayScore === '') return '';
   const homeScore = Number(match.homeScore);
   const awayScore = Number(match.awayScore);
@@ -124,7 +136,7 @@ function updateRoundControls() {
   const button = document.querySelector('#lock-result-round');
   const unlockButton = document.querySelector('#unlock-result-round');
   button.disabled = locked || !roundMatches.length;
-  button.textContent = locked ? `Fecha ${round} cerrada` : `Cerrar Fecha ${round}`;
+  button.textContent = locked ? `${roundName(round)} cerrada` : `Cerrar ${roundName(round)}`;
   unlockButton.hidden = !locked;
   unlockButton.disabled = !locked;
   const status = document.querySelector('#round-lock-status');
@@ -134,7 +146,7 @@ function updateRoundControls() {
 
 function standings() {
   const table = Object.fromEntries(teams.map(team => [team.id, { team, pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, pts: 0 }]));
-  const finished = matches.filter(match => match.closed || match.status === 'FINISHED');
+  const finished = matches.filter(match => isGroupMatch(match) && (match.closed || match.status === 'FINISHED'));
   const currentRound = finished.filter(match => !match.automaticWalkover).reduce((latest, match) => Math.max(latest, Number(match.round || 0)), 0);
   finished.filter(match => !match.automaticWalkover || Number(match.round || 0) <= currentRound).forEach(match => {
     const home = table[match.homeId], away = table[match.awayId];
@@ -357,6 +369,14 @@ async function openSheet(match) {
       ? `El acta suma ${calculated.home}–${calculated.away}, pero el resultado oficial guardado es ${storedScore.home || 0}–${storedScore.away || 0}. Reabre la fecha para corregirlo y vuelve a guardar el partido.`
       : 'Fecha cerrada: acta disponible solo para consulta.';
   }
+  if(match.phase==='KNOCKOUT'&&!match.roundLocked&&storedScore.home!==''&&storedScore.away!=='') {
+    const calculated=goalTotalsFromEvents();
+    if(Number(storedScore.home)!==calculated.home||Number(storedScore.away)!==calculated.away) document.querySelector('#final-score-status').textContent=`Marcador anterior: ${storedScore.home}–${storedScore.away}. Completa los goles por jugador antes de guardar el acta; no se asignaron goleadores automáticamente.`;
+  }
+  document.querySelector('#knockout-tie-section').hidden = match.phase !== 'KNOCKOUT';
+  document.querySelector('#acta-knockout-winner').innerHTML = `<option value="">Seleccionar ganador del desempate</option><option value="${match.homeId}">${esc(teamName(match.homeId))}</option><option value="${match.awayId}">${esc(teamName(match.awayId))}</option>`;
+  document.querySelector('#acta-knockout-winner').value = match.winnerId || '';
+  document.querySelector('#acta-knockout-tie-notes').value = match.knockoutTieNotes || '';
   modal.showModal();
 }
 
@@ -365,8 +385,13 @@ async function load() {
     if (!championshipId || !disciplineId) throw new Error('No hay un campeonato o deporte seleccionado. Regresa al resumen y entra nuevamente al deporte.');
     matchList.innerHTML = '<p class="muted">Cargando resultados…</p>';
     const selectedRound = roundSelect.value;
-    const response = await apiGet('/api/results-bootstrap', { championshipId, disciplineId, publicOnly: true });
+    const response = await apiGetFresh('/api/results-bootstrap', { championshipId, disciplineId, publicOnly: true });
     const data = response.data || {};
+    knockoutPlan = data.knockoutPlan || null;
+    if (!data.knockoutActasSupported) { try { knockoutPlan=(await apiGet('/api/knockouts',{championshipId,disciplineId})).data; } catch(error) { /* Un campeonato sin eliminatorias puede continuar. */ } }
+    document.querySelector('#knockout-acta-entry').hidden = knockoutPlan?.status !== 'CONFIRMED';
+    document.querySelector('#knockout-acta-hint').textContent = data.knockoutActasSupported ? 'Usa el acta habitual para jugadores, goles y tarjetas. Cierra cada ronda para habilitar la siguiente.' : 'Para habilitar las actas de eliminatorias, publica el backend actualizado de Apps Script.';
+    document.querySelector('#sync-knockout-actas').disabled = !data.knockoutActasSupported;
     const championship = (data.championships || []).find(item => item.id === championshipId);
     const discipline = (data.disciplines || []).find(item => item.id === disciplineId);
     currentDiscipline = discipline || null;
@@ -379,15 +404,19 @@ async function load() {
     const sanctionIds = new Set(sanctions.map(sanction => sanction.id));
     payments = (data.payments || []).filter(payment => sanctionIds.has(payment.sanctionId));
     minutes = [];
+    loadedMinuteMatchIds.clear();
     document.querySelector('#sidebar-championship').textContent = championship?.shortName || championship?.name || 'Campeonato';
     document.querySelector('#results-context').textContent = `${championship?.name || ''} · ${discipline?.name || ''}`;
     const rounds = [...new Set(matches.map(item => item.round))].sort((a, b) => a - b);
-    roundSelect.innerHTML = rounds.map(round => `<option value="${round}">Fecha ${round}</option>`).join('');
+    roundSelect.innerHTML = rounds.map(round => `<option value="${round}">${esc(roundName(round))}</option>`).join('');
     currentRoundNumber = calendarRound();
     if (rounds.some(round => String(round) === selectedRound)) roundSelect.value = selectedRound;
     else if (currentRoundNumber) roundSelect.value = String(currentRoundNumber);
+    if (preferKnockoutRound) { const next=matches.find((m)=>m.phase==='KNOCKOUT'&&!m.roundLocked)||matches.find((m)=>m.phase==='KNOCKOUT'); if(next){roundSelect.value=String(next.round);preferKnockoutRound=false;} }
     updateCurrentRoundHint();
     renderMatches(); renderStandings(); renderSanctions();
+    const requestedId=new URLSearchParams(location.search).get('matchId'), requested=matches.find((m)=>m.id===requestedId);
+    if(requested&&!requestedMatchOpened&&!isVolley()){requestedMatchOpened=true;roundSelect.value=String(requested.round);renderMatches();await openSheet(requested);}
   } catch (error) {
     matchList.innerHTML = `<p class="error-message">${esc(error.message)}</p>`;
     document.querySelector('#round-lock-status').textContent = 'No se pudieron cargar los datos.';
@@ -540,9 +569,11 @@ scoreForm.addEventListener('submit', async event => {
   const values = Object.fromEntries(new FormData(scoreForm));
   button.disabled = true;
   try {
+    const knockoutFields=activeMatch.phase==='KNOCKOUT'?{knockoutWinnerId:document.querySelector('#acta-knockout-winner').value,knockoutTieNotes:document.querySelector('#acta-knockout-tie-notes').value}:{};
+    if(activeMatch.phase==='KNOCKOUT'&&Number(values.homeScore)===Number(values.awayScore)&&(!knockoutFields.knockoutWinnerId||!knockoutFields.knockoutTieNotes.trim())) throw new Error('El partido está empatado: indica el ganador y explica la definición en «Desempate de eliminatorias».');
     const [minuteResponse, matchResponse] = await Promise.all([
       apiPost('/api/minutes', { matchId: activeMatch.id, observations: notesForm.elements.observations.value, homeLineup: lineupDraft.home, awayLineup: lineupDraft.away }),
-      apiPut('/api/matches', { id: activeMatch.id, homeScore: Number(values.homeScore), awayScore: Number(values.awayScore), closed: false, walkoverTeamId: '' })
+      apiPut('/api/matches', { id: activeMatch.id, homeScore: Number(values.homeScore), awayScore: Number(values.awayScore), closed: false, walkoverTeamId: '', ...knockoutFields })
     ]);
     minutes = minutes.filter(item => item.matchId !== activeMatch.id);
     minutes.push(minuteResponse.data);
@@ -606,7 +637,7 @@ document.querySelector('#lock-result-round').addEventListener('click', async eve
   const round = Number(roundSelect.value);
   const roundMatches = matches.filter(match => match.round === round);
   if (!roundMatches.length) return;
-  if (!confirm(`¿Confirmas el cierre de la Fecha ${round}? Después ya no se podrán editar sus actas ni resultados.`)) return;
+  if (!confirm(`¿Confirmas el cierre de ${roundName(round)}? Después ya no se podrán editar sus actas ni resultados.`)) return;
   const button = event.currentTarget;
   button.disabled = true;
   document.querySelector('#round-lock-status').textContent = 'Cerrando fecha...';
@@ -622,14 +653,14 @@ document.querySelector('#unlock-result-round').addEventListener('click', async e
   const round = Number(roundSelect.value);
   const roundMatches = matches.filter(match => match.round === round);
   if (!roundMatches.length) return;
-  if (!confirm(`¿Reabrir la Fecha ${round} para corregir el acta? Después de corregir debes volver a cerrar la fecha.`)) return;
+  if (!confirm(`¿Reabrir ${roundName(round)} para corregir el acta? Después de corregir debes volver a cerrar la ronda.`)) return;
   const button = event.currentTarget;
   button.disabled = true;
   document.querySelector('#round-lock-status').textContent = 'Reabriendo fecha para corrección...';
   try {
     await apiPut('/api/matches', { id: roundMatches[0].id, unlockRound: true });
     await load();
-    document.querySelector('#round-lock-status').textContent = `Fecha ${round} reabierta. Corrige el acta y vuelve a cerrar la fecha.`;
+    document.querySelector('#round-lock-status').textContent = `${roundName(round)} reabierta. Corrige el acta y vuelve a cerrar la ronda.`;
     document.querySelector('#round-lock-status').className = 'form-status success-message';
   } catch (error) {
     document.querySelector('#round-lock-status').textContent = error.message;

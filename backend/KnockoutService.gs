@@ -3,7 +3,7 @@ var KnockoutService = {
   get: function (context) {
     var p = context.params || {};
     var record = knockoutRecord(p.championshipId, p.disciplineId);
-    return record ? JSON.parse(record.valor) : null;
+    return record ? knockoutPlanWithActas(record) : null;
   },
   post: function (context) {
     var lock = LockService.getScriptLock();
@@ -15,6 +15,7 @@ var KnockoutService = {
     if (!validateUuid(b.championshipId) || !validateUuid(b.disciplineId)) throw validationError('Selecciona un campeonato y deporte válidos.');
     var record = knockoutRecord(b.championshipId, b.disciplineId);
     var previous = record ? JSON.parse(record.valor) : null;
+    if (b.action === 'syncMatches') return syncKnockoutActaMatches(b.championshipId, b.disciplineId);
     if (previous && String(b.revision || '') !== String(previous.revision || '')) throw validationError('Otro usuario modificó las llaves. Actualiza antes de guardar.');
     if (b.action === 'result') return saveKnockoutResult(b, previous, record);
     var size = plan && Number(plan.size || 8);
@@ -78,6 +79,7 @@ function knockoutSources(plan) {
   return result;
 }
 function saveKnockoutResult(body, plan, record) {
+  if (knockoutActaRecords(record).length) throw validationError('Registra este resultado desde Resultados y su acta digital.');
   if (!plan || plan.status !== 'CONFIRMED') throw validationError('Confirma primero los cruces.');
   var index = Number(body.matchIndex), result = body.result || {};
   var size = Number(plan.size || 8);
@@ -101,4 +103,97 @@ function saveKnockoutResult(body, plan, record) {
   plan.revision = generateUuid(); plan.updatedAt = nowIso();
   updateSheetRecord(SHEETS.CONFIGURATION, record.id, { valor: JSON.stringify(plan), updated_at: plan.updatedAt });
   return plan;
+}
+
+// Adaptación de las llaves a PARTIDOS: se reutilizan EVENTOS y ACTAS habituales.
+function knockoutActaRecords(record) {
+  if (!record) return [];
+  return listSheetRecords(SHEETS.MATCHES).filter(function (m) { return String(m.estado) !== 'INACTIVE' && String(m.fase) === 'KNOCKOUT' && String(matchMetadata(m).knockoutPlanId) === String(record.id); });
+}
+function knockoutPlanWithActas(record) {
+  var plan = JSON.parse(record.valor), records = knockoutActaRecords(record);
+  plan.results = plan.results || {}; plan.matchIds = {};
+  records.sort(function (a,b) { return Number(matchMetadata(a).knockoutIndex) - Number(matchMetadata(b).knockoutIndex); }).forEach(function (m) {
+    var meta = matchMetadata(m), index = Number(meta.knockoutIndex);
+    plan.matchIds[index] = m.id;
+    delete plan.results[index];
+    var ids = knockoutParticipants(plan,index);
+    if ((m.cerrado === true || String(m.cerrado) === 'true') && m.ganador_id && ids[0] === String(m.local_id) && ids[1] === String(m.visitante_id)) {
+      plan.results[index] = { homeScore: Number(m.marcador_local), awayScore: Number(m.marcador_visitante), winnerId: String(m.ganador_id), notes: meta.knockoutTieNotes || '', date: formatMatchDate(m.fecha), time: formatMatchTime(m.hora), venue: m.escenario || '' };
+    }
+  });
+  return plan;
+}
+function knockoutStageDetails(size,index) {
+  var rounds = knockoutStages(size), round = rounds.find(function (r) { return index >= r.offset && index < r.offset+r.count; });
+  if (!round) return { name: 'Tercer puesto', stage: rounds.length, order: 1, count: 1 };
+  return { name: round.count === 8 ? 'Octavos de final' : round.count === 4 ? 'Cuartos de final' : round.count === 2 ? 'Semifinales' : 'Final', stage: rounds.indexOf(round), order: index-round.offset+1, count: round.count };
+}
+function syncKnockoutActaMatches(championshipId,disciplineId) {
+  var record = knockoutRecord(championshipId,disciplineId);
+  if (!record) throw validationError('No hay llaves preparadas.');
+  var plan = knockoutPlanWithActas(record);
+  if (plan.status !== 'CONFIRMED') throw validationError('Confirma primero las eliminatorias.');
+  var records = knockoutActaRecords(record), size = Number(plan.size || 8), created = [];
+  var group = listSheetRecords(SHEETS.MATCHES).filter(function (m) { return String(m.campeonato_id) === String(championshipId) && String(m.disciplina_id) === String(disciplineId) && (!m.fase || String(m.fase) === 'GROUP') && String(m.estado) !== 'INACTIVE'; });
+  if (!group.length || group.some(function (m) { return !matchMetadata(m).roundLocked; })) throw validationError('Cierra todas las fechas de grupos antes de habilitar las actas de eliminatorias.');
+  var baseRound = group.reduce(function (max,m) { return Math.max(max,Number(m.jornada || 0)); },0)+1;
+  for(var index=0;index<(plan.thirdPlace?size:size-1);index++) {
+    var ids = knockoutParticipants(plan,index);
+    if (ids.some(function (id) { return !id; })) continue;
+    var current = records.find(function (m) { return Number(matchMetadata(m).knockoutIndex) === index; });
+    if (current) {
+      if (String(current.local_id) !== ids[0] || String(current.visitante_id) !== ids[1]) {
+        if (knockoutMatchHasActivity(current)) throw validationError('La siguiente ronda ya tiene un acta registrada. No se pueden cambiar sus equipos.');
+        updateSheetRecord(SHEETS.MATCHES,current.id,{local_id:ids[0],visitante_id:ids[1],updated_at:nowIso()});
+      }
+      continue;
+    }
+    var stage=knockoutStageDetails(size,index), schedule=plan.pairs[0] || {}, old=plan.results[index], timestamp=nowIso();
+    var item={id:generateUuid(),campeonato_id:championshipId,disciplina_id:disciplineId,fase:'KNOCKOUT',jornada:baseRound+stage.stage,fecha:schedule.date || '',hora:index===0?schedule.time || '':'',escenario:schedule.venue || '',local_id:ids[0],visitante_id:ids[1],marcador_local:old?old.homeScore:'',marcador_visitante:old?old.awayScore:'',ganador_id:old?old.winnerId:'',cerrado:Boolean(old),estado:old?'FINISHED':'SCHEDULED',created_at:timestamp,updated_at:timestamp,observaciones:JSON.stringify({knockoutPlanId:record.id,knockoutIndex:index,roundLabel:stage.name,order:stage.order,orderConfirmed:true,knockoutTieNotes:old?old.notes || '':'',legacyScore:Boolean(old)})};
+    appendSheetRecord(SHEETS.MATCHES,item); records.push(item); created.push(item.id);
+  }
+  return { plan: knockoutPlanWithActas(record), createdIds:created, items:knockoutActaRecords(record).map(toMatchResponse) };
+}
+function knockoutMatchHasActivity(match) {
+  if (match.marcador_local !== '' || match.marcador_visitante !== '' || match.cerrado === true || String(match.cerrado) === 'true') return true;
+  return listSheetRecords(SHEETS.EVENTS).some(function (e) { return String(e.partido_id) === String(match.id) && String(e.estado) !== 'INACTIVE'; }) || listSheetRecords(SHEETS.MINUTES).some(function (a) { return String(a.partido_id) === String(match.id) && String(a.estado) !== 'INACTIVE'; });
+}
+function assertKnockoutCanEdit(match) {
+  if (String(match.fase) !== 'KNOCKOUT') return;
+  var record=knockoutRecord(match.campeonato_id,match.disciplina_id), plan=record && knockoutPlanWithActas(record), index=Number(matchMetadata(match).knockoutIndex);
+  if (!plan) throw validationError('No se encontró la llave del partido.');
+  var ids=knockoutParticipants(plan,index);
+  if (ids[0] !== String(match.local_id) || ids[1] !== String(match.visitante_id)) throw validationError('Cierra la ronda anterior para habilitar este partido.');
+  var dependencies=knockoutSources(plan), dependent=Object.keys(dependencies).filter(function (key) { return dependencies[key].indexOf(index) >= 0; }).map(Number), size=Number(plan.size || 8);
+  if (plan.thirdPlace && [size-4,size-3].indexOf(index)>=0) dependent.push(size-1);
+  if (knockoutActaRecords(record).some(function (m) { return dependent.indexOf(Number(matchMetadata(m).knockoutIndex))>=0 && knockoutMatchHasActivity(m); })) throw validationError('La siguiente ronda ya tiene registros. No se puede modificar el acta de origen.');
+}
+function updateKnockoutMatch(current,body) {
+  if (body.lockRound) return lockMatchRound(current);
+  if (body.unlockRound) return unlockMatchRound(current);
+  assertKnockoutCanEdit(current);
+  if (isMatchLocked(current)) throw validationError('Reabre la ronda para corregir su acta.');
+  var metadata=matchMetadata(current), changes={updated_at:nowIso()};
+  var home=body.homeScore !== undefined?Number(body.homeScore):current.marcador_local, away=body.awayScore !== undefined?Number(body.awayScore):current.marcador_visitante;
+  if (body.walkoverTeamId) {
+    if ([String(current.local_id),String(current.visitante_id)].indexOf(String(body.walkoverTeamId))<0) throw validationError('El equipo ausente no participa en este partido.');
+    home=String(body.walkoverTeamId)===String(current.local_id)?0:3; away=3-home;
+    metadata.walkover={absentTeamId:body.walkoverTeamId,registeredAt:nowIso()};
+  } else if (body.walkoverTeamId !== undefined) delete metadata.walkover;
+  if (body.homeScore !== undefined || body.awayScore !== undefined || body.walkoverTeamId) {
+    if (home === '' || away === '' || !Number.isInteger(home) || !Number.isInteger(away) || home<0 || away<0) throw validationError('Completa el marcador con enteros no negativos.');
+    var winner=home>away?String(current.local_id):away>home?String(current.visitante_id):String(body.knockoutWinnerId || '');
+    var notes=sanitizeText(body.knockoutTieNotes || '');
+    if (home===away && ([String(current.local_id),String(current.visitante_id)].indexOf(winner)<0 || !notes.trim())) throw validationError('Indica el ganador y explica el desempate.');
+    changes.marcador_local=home; changes.marcador_visitante=away; changes.ganador_id=winner;
+    metadata.knockoutTieNotes=notes;
+  }
+  if (body.date !== undefined) changes.fecha=sanitizeText(body.date);
+  if (body.time !== undefined) changes.hora=sanitizeText(body.time);
+  if (body.venue !== undefined) changes.escenario=sanitizeText(body.venue);
+  if (body.closed === true && (home === '' || away === '' || (Number(home)===Number(away) && !(changes.ganador_id || current.ganador_id)))) throw validationError('Completa el marcador y el ganador antes de finalizar.');
+  if (body.closed !== undefined) {changes.cerrado=Boolean(body.closed);changes.estado=body.closed?'FINISHED':'SCHEDULED';}
+  changes.observaciones=JSON.stringify(metadata);
+  return toMatchResponse(updateSheetRecord(SHEETS.MATCHES,current.id,changes));
 }
