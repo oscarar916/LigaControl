@@ -121,7 +121,9 @@ function knockoutDecisionLabel(match) {
   if (match.phase !== 'KNOCKOUT' || !match.winnerId || match.homeScore === '' || match.awayScore === '') return '';
   const tied = Number(match.homeScore) === Number(match.awayScore);
   const notes = tied ? String(match.knockoutTieNotes || '').trim() : '';
-  return `<span class="result-knockout-decision">${notes ? `<span>${esc(notes)}</span>` : ''}<strong>Clasificó: ${esc(teamName(match.winnerId))}${tied && /penal/i.test(notes) ? ' · Por penales' : ''}</strong></span>`;
+  if (!tied) return '';
+  const penalties = /penal[^\d]*(\d+)\s*[–—−-]\s*(\d+)/i.exec(notes);
+  return penalties ? `<span class="result-knockout-decision" aria-label="Penales: ${penalties[1]} a ${penalties[2]}. Clasificó ${esc(teamName(match.winnerId))}" title="Penales · Clasificó ${esc(teamName(match.winnerId))}">(${penalties[1]} - ${penalties[2]})</span>` : '';
 }
 function renderMatches() {
   const round = Number(roundSelect.value);

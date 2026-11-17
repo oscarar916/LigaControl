@@ -342,7 +342,8 @@ a { color: inherit; text-decoration: none; } button { font: inherit; }
 .results-phase-tabs { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; }
 #knockout-editor [hidden] { display: none !important; }
 #knockout-register-results { margin-top: 18px; }
-.result-knockout-decision { grid-column: 1 / -1; display: grid; justify-items: center; gap: .25rem; padding: .5rem; border-radius: 8px; background: var(--color-primary-light); color: var(--color-primary); font-size: .85rem; }
+.result-knockout-decision { grid-column: 2 / 5; grid-row: 2; text-align: center; color: #d62828; font-size: .85rem; line-height: 1.2; white-space: nowrap; }
+[data-theme="dark"] .result-knockout-decision { color: #ff8989; }
 .report-match-decision { grid-column: 3 / 6; display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem .8rem; padding: .4rem .7rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-primary-light); color: var(--color-primary); font-size: .8rem; }
 @media print { .report-match-decision { color: #12376b; background: #edf4ff; break-inside: avoid; } }
 .knockout-result-tabs button { display: inline-flex; gap: .6rem; align-items: center; padding: .65rem .85rem; border: 1px solid var(--color-border); border-radius: 10px; color: var(--color-text); background: var(--color-background); font-weight: 800; cursor: pointer; }
