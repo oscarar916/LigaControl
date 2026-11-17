@@ -17,6 +17,22 @@ test('idempotent migration creates real acta matches without inventing player ev
   assert.equal(tables.matches.length,5);assert.equal(tables.events.length,0);assert.equal(tables.minutes.length,0);
   assert.equal(JSON.stringify(tables.matches[0]),before);assert(first.items.every(m=>m.phase==='KNOCKOUT'&&m.round===12));
 });
+test('round schedules are independent and existing scores cannot be rescheduled',()=>{
+  const {ctx,sync,tables}=setup();sync();
+  const send=(data)=>{const plan=JSON.parse(tables.configuration[0].valor);return ctx.KnockoutService.post({body:{championshipId:'c',disciplineId:'d',revision:plan.revision,...data}});};
+  const result=send({action:'schedule',stageOffset:4,date:'2026-12-01',time:'16:00',venue:'Semis'});
+  assert.equal(result.schedules[4].venue,'Semis');
+  assert.equal(tables.matches.find(m=>m.fase==='KNOCKOUT').escenario,'Cancha');
+  send({action:'schedule',stageOffset:0,date:'2026-11-30',time:'15:00',venue:'Cuartos'});
+  const opening=tables.matches.filter(m=>m.fase==='KNOCKOUT');
+  assert(opening.every(m=>m.escenario==='Cuartos'));
+  opening[0].marcador_local=1;
+  assert.throws(()=>send({action:'schedule',stageOffset:0,date:'2026-12-02'}),/actas o resultados/);
+  assert.equal(opening[0].fecha,'2026-11-30');
+  const rules=send({action:'settings',tieRule:'MANUAL',notes:'Acuerdo de delegados',thirdPlace:false});
+  assert.equal(rules.tieRule,'MANUAL');assert.equal(opening[0].marcador_local,1);
+  assert.throws(()=>send({action:'settings',tieRule:'PENALTIES',thirdPlace:true}),/tercer puesto/);
+});
 test('existing scores are preserved without creating fictional scorers',()=>{
   const {sync,tables}=setup(true);const result=sync();const first=result.items.find(m=>m.knockoutIndex===0);
   assert.equal(first.homeScore,2);assert.equal(first.awayScore,1);assert.equal(first.winnerId,'t0');assert.equal(tables.events.length,0);

@@ -46,8 +46,9 @@
           <div class="form-actions field-wide"><button class="action-button" type="submit">Guardar reglas</button><span id="sanction-settings-status" class="form-status" role="status"></span></div>
         </form>
       </section>
+      <section class="card settings-card" id="knockout-settings"><h2>Fase de eliminatorias</h2><p class="muted">Reglas del deporte seleccionado. La fecha, hora y cancha de cada ronda se programan en Partidos → Eliminatorias.</p><form id="knockout-settings-form" class="form-grid"><label class="field"><span>Desempate</span><select name="tieRule"><option value="PENALTIES">Penales</option><option value="MANUAL">Acuerdo de delegados</option></select></label><label class="check-field"><input name="thirdPlace" type="checkbox"> Partido por tercer puesto</label><label class="field field-wide"><span>Acuerdos de delegados</span><textarea name="notes" rows="3" maxlength="2000"></textarea></label><div class="form-actions field-wide"><button class="action-button" type="submit">Guardar reglas de eliminatorias</button><span id="knockout-settings-status" role="status" class="form-status"></span></div></form><a href="eliminatorias.html">Ir a la programación de eliminatorias →</a></section>
     </main>
   </div>
-  <script type="module" src="js/app.js"></script><script type="module" src="js/configuracion.js?v=20260903-1"></script>
+  <script type="module" src="js/app.js"></script><script type="module" src="js/configuracion.js?v=20260903-1"></script><script type="module" src="js/knockout-settings.js?v=20261117-12"></script>
 </body>
 </html>

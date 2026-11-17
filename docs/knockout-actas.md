@@ -29,3 +29,11 @@ La habilitación es idempotente. Se identifica cada partido por el ID del plan y
 Los partidos usan `fase: KNOCKOUT` y jornadas posteriores a la última jornada de grupos. Los puntos de grupos excluyen estos partidos en Resultados, Reportes y vista pública. Partidos conserva la programación de grupos. Las tarjetas se acumulan solo dentro de su fase y las deudas históricas no cambian.
 
 Los ganadores de las llaves se leen desde los partidos y actas oficializados. Una corrección de origen se bloquea si el cruce siguiente ya tiene marcador, eventos o acta guardada. Si todavía no tiene registros, la ronda puede reabrirse y corregirse; los equipos del siguiente partido se actualizan al volver a cerrar. Mientras la ronda anterior está reabierta, no se permite registrar incidencias en los partidos dependientes.
+# Programación por ronda y reglas de eliminatorias (17/11/2026)
+
+Actualizar también el archivo **KnockoutService.gs** en Apps Script y publicar una nueva versión del despliegue existente. El frontend por sí solo no habilita los guardados nuevos `schedule` y `settings`.
+
+- Partidos → Eliminatorias: cada ronda tiene su desplegable de programación. Solo la primera partida de cada ronda lleva hora de inicio. Rondas con actas o resultados no se reprograman.
+- Configuración → Fase de eliminatorias: desempate, acuerdos y tercer puesto. No permite cambiar tercer puesto después de habilitar partidos.
+- No cambia cruces oficiales, goles, pagos ni tarjetas. Las rondas futuras conservan su programación hasta habilitarse sus partidos.
+

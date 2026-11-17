@@ -10,7 +10,7 @@ function view() {
     '#knockout-common-venue':{value:'Cancha principal'}, '#knockout-common-time':{value:'14:00'},
     '#knockout-tie':{value:'PENALTIES'}, '#knockout-third':{checked:true}, '#knockout-notes':{value:''},
     '#knockout-bracket':{classList:{add:()=>{}},innerHTML:''}, '#bracket-label':{}, '#bracket-context':{}, '#bracket-notes':{},
-    '#knockout-results':{}, '#knockout-result-tabs':{}, '#knockout-result-forms':{}
+    '#knockout-results':{}, '#knockout-result-tabs':{}, '#knockout-result-forms':{addEventListener:()=>{}}
   };
   const ctx={localStorage:{getItem:()=>''},document:{querySelector:(key)=>fields[key]}};
   vm.createContext(ctx);

@@ -17,6 +17,7 @@ var KnockoutService = {
     var previous = record ? JSON.parse(record.valor) : null;
     if (b.action === 'syncMatches') return syncKnockoutActaMatches(b.championshipId, b.disciplineId);
     if (previous && String(b.revision || '') !== String(previous.revision || '')) throw validationError('Otro usuario modificó las llaves. Actualiza antes de guardar.');
+    if (b.action === 'settings' || b.action === 'schedule') return updateKnockoutOptions(b, previous, record);
     if (b.action === 'result') return saveKnockoutResult(b, previous, record);
     var size = plan && Number(plan.size || 8);
     if (!plan || [4,8,16].indexOf(size) < 0 || ['DRAFT', 'CONFIRMED'].indexOf(plan.status) < 0 || !Array.isArray(plan.pairs) || plan.pairs.length !== size / 2) throw validationError('Completa los cruces para 4, 8 o 16 clasificados.');
@@ -57,6 +58,30 @@ var KnockoutService = {
 };
 function knockoutRecord(championshipId, disciplineId) {
   return listSheetRecords(SHEETS.CONFIGURATION).find(function (r) { return String(r.campeonato_id) === String(championshipId) && String(r.disciplina_id) === String(disciplineId) && String(r.clave) === 'KNOCKOUT_PLAN' && String(r.estado) !== 'INACTIVE'; });
+}
+function updateKnockoutOptions(body, plan, record) {
+  if (!plan || !record) throw validationError('Prepara primero las llaves desde Partidos.');
+  if (body.action === 'settings') {
+    if (['PENALTIES','MANUAL'].indexOf(body.tieRule)<0) throw validationError('Selecciona el desempate.');
+    if (body.tieRule === 'MANUAL' && !String(body.notes || '').trim()) throw validationError('Escribe el acuerdo de desempate.');
+    if (Boolean(body.thirdPlace)!==Boolean(plan.thirdPlace) && (knockoutActaRecords(record).length || Object.keys(plan.results || {}).length)) throw validationError('El tercer puesto no puede cambiar cuando los partidos ya fueron habilitados.');
+    plan.tieRule=body.tieRule; plan.notes=sanitizeText(body.notes || ''); plan.thirdPlace=Boolean(body.thirdPlace);
+  } else {
+    var valid=knockoutStages(plan.size).some(function (s) { return s.offset===Number(body.stageOffset); }) || (plan.thirdPlace && Number(body.stageOffset)===plan.size-1);
+    if (!valid) throw validationError('Ronda inválida.');
+    var date=sanitizeText(body.date || ''),time=sanitizeText(body.time || ''),venue=sanitizeText(body.venue || '');
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw validationError('Fecha inválida.');
+    if (time && !/^\d{2}:\d{2}$/.test(time)) throw validationError('Hora inválida.');
+    var offset=Number(body.stageOffset), count=offset===plan.size-1?1:knockoutStages(plan.size).filter(function(s){return s.offset===offset;})[0].count;
+    var records=knockoutActaRecords(record).filter(function(m){var n=Number(matchMetadata(m).knockoutIndex);return n>=offset&&n<offset+count;});
+    if(records.some(function(m){return matchMetadata(m).roundLocked || knockoutMatchHasActivity(m);})) throw validationError('Esta ronda ya tiene actas o resultados. Su programación no puede cambiar.');
+    plan.schedules=plan.schedules || {};plan.schedules[offset]={date:date,time:time,venue:venue};
+    records.forEach(function(m){updateSheetRecord(SHEETS.MATCHES,m.id,{fecha:date,hora:Number(matchMetadata(m).knockoutIndex)===offset?time:'',escenario:venue,updated_at:nowIso()});});
+    if(offset===0)plan.pairs.forEach(function(p,i){p.date=date;p.time=i===0?time:'';p.venue=venue;});
+  }
+  plan.revision=generateUuid();plan.updatedAt=nowIso();
+  updateSheetRecord(SHEETS.CONFIGURATION,record.id,{valor:JSON.stringify(plan),updated_at:plan.updatedAt});
+  return knockoutPlanWithActas(knockoutRecord(body.championshipId,body.disciplineId));
 }
 function knockoutParticipants(plan, index) {
   var size = Number(plan.size || 8), results = plan.results || {};
@@ -149,8 +174,8 @@ function syncKnockoutActaMatches(championshipId,disciplineId) {
       }
       continue;
     }
-    var stage=knockoutStageDetails(size,index), schedule=plan.pairs[0] || {}, old=plan.results[index], timestamp=nowIso();
-    var item={id:generateUuid(),campeonato_id:championshipId,disciplina_id:disciplineId,fase:'KNOCKOUT',jornada:baseRound+stage.stage,fecha:schedule.date || '',hora:index===0?schedule.time || '':'',escenario:schedule.venue || '',local_id:ids[0],visitante_id:ids[1],marcador_local:old?old.homeScore:'',marcador_visitante:old?old.awayScore:'',ganador_id:old?old.winnerId:'',cerrado:Boolean(old),estado:old?'FINISHED':'SCHEDULED',created_at:timestamp,updated_at:timestamp,observaciones:JSON.stringify({knockoutPlanId:record.id,knockoutIndex:index,roundLabel:stage.name,order:stage.order,orderConfirmed:true,knockoutTieNotes:old?old.notes || '':'',legacyScore:Boolean(old)})};
+    var stage=knockoutStageDetails(size,index), offset=index-stage.order+1, schedule=(plan.schedules || {})[offset] || (stage.stage===0?plan.pairs[0]:{}) || {}, old=plan.results[index], timestamp=nowIso();
+    var item={id:generateUuid(),campeonato_id:championshipId,disciplina_id:disciplineId,fase:'KNOCKOUT',jornada:baseRound+stage.stage,fecha:schedule.date || '',hora:stage.order===1?schedule.time || '':'',escenario:schedule.venue || '',local_id:ids[0],visitante_id:ids[1],marcador_local:old?old.homeScore:'',marcador_visitante:old?old.awayScore:'',ganador_id:old?old.winnerId:'',cerrado:Boolean(old),estado:old?'FINISHED':'SCHEDULED',created_at:timestamp,updated_at:timestamp,observaciones:JSON.stringify({knockoutPlanId:record.id,knockoutIndex:index,roundLabel:stage.name,order:stage.order,orderConfirmed:true,knockoutTieNotes:old?old.notes || '':'',legacyScore:Boolean(old)})};
     appendSheetRecord(SHEETS.MATCHES,item); records.push(item); created.push(item.id);
   }
   return { plan: knockoutPlanWithActas(record), createdIds:created, items:knockoutActaRecords(record).map(toMatchResponse) };

@@ -71,6 +71,9 @@ function renderEditor(plan) {
   $('#knockout-draft-actions').hidden = confirmed;
   $('#knockout-register-results').hidden = !confirmed;
   $('#knockout-schedule').open = false;
+  $('#knockout-schedule').hidden = true;
+  $('#knockout-rules').hidden = true;
+  if (!$('#knockout-settings-link')) $('#knockout-rules').insertAdjacentHTML('afterend','<p id="knockout-settings-link"><a href="configuracion.html#knockout-settings">Configurar reglas de eliminatorias →</a></p>');
   $('#knockout-form').querySelectorAll('input,select,textarea,button').forEach((el) => { el.disabled = confirmed; });
   if(!confirmed) $('#knockout-pairs').querySelectorAll('[data-move]').forEach((button)=>{const destination=Number(button.dataset.move)+Number(button.dataset.direction);button.disabled=destination<0||destination>=plan.pairs.length;});
   updatePreview();
@@ -92,8 +95,18 @@ function renderResults(plan) {
     const completed=Array.from({length:r.count},(_,j)=>plan.results?.[r.offset+j]).filter(Boolean).length;
     return `<button type="button" data-result-stage="${r.offset}" aria-pressed="${r.offset===activeResultStage}" class="${r.offset===activeResultStage?'active':''}">${r.name} <small>${completed}/${r.count}</small></button>`;
   }).join('');
-  $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${Array.from({length:r.count},(_,j)=>{const index=r.offset+j, result=plan.results?.[index]; return resultCard(plan,index).replace('</footer>', `${result && Number(result.homeScore)===Number(result.awayScore) && result.notes ? `<p class="knockout-penalties">${esc(result.notes)}</p>` : ''}</footer>`);}).join('')}</div>`).join('');
+  $('#knockout-result-forms').innerHTML=rounds.map((r)=>`<div data-result-panel="${r.offset}" ${r.offset===activeResultStage?'':'hidden'}>${roundScheduleForm(plan,r)}${Array.from({length:r.count},(_,j)=>{const index=r.offset+j, result=plan.results?.[index]; return resultCard(plan,index).replace('</footer>', `${result && Number(result.homeScore)===Number(result.awayScore) && result.notes ? `<p class="knockout-penalties">${esc(result.notes)}</p>` : ''}</footer>`);}).join('')}</div>`).join('');
 }
+function roundScheduleForm(plan,round) {
+  const schedule=plan.schedules?.[round.offset] || (round.offset===0?plan.pairs[0]:{}) || {};
+  return `<details class="knockout-settings"><summary>Programar ${esc(round.name)} <small>Fecha, hora de inicio y cancha</small></summary><form data-round-schedule="${round.offset}"><div class="knockout-options"><label class="field"><span>Fecha</span><input name="date" type="date" value="${esc(schedule.date || '')}"></label><label class="field"><span>Inicio del primer partido</span><input name="time" type="time" value="${esc(schedule.time || '')}"></label><label class="field"><span>Cancha</span><input name="venue" maxlength="200" value="${esc(schedule.venue || '')}"></label></div><p class="muted">Se aplica solo a esta ronda. Los demás partidos continúan en orden. No modifica marcadores ni actas.</p><button class="secondary-button" type="submit">Guardar programación</button><span role="status" class="form-status"></span></form></details>`;
+}
+$('#knockout-result-forms').addEventListener('submit',async event=>{
+  const form=event.target.closest('[data-round-schedule]');if(!form)return;event.preventDefault();
+  const button=form.querySelector('button'),status=form.querySelector('[role="status"]');button.disabled=true;
+  try { const data=Object.fromEntries(new FormData(form));const response=await apiPost('/api/knockouts',{championshipId,disciplineId,revision,action:'schedule',stageOffset:Number(form.dataset.roundSchedule),...data});revision=response.data.revision;renderEditor(response.data);message('Programación de la ronda guardada.'); }
+  catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+});
 function resultCard(plan,index) {
   const ids=participants(plan,index), r=plan.results?.[index], matchId=plan.matchIds?.[index], ready=ids.every(Boolean);
   const link=`resultados.html?phase=knockout${matchId?'&matchId='+encodeURIComponent(matchId):''}`;
