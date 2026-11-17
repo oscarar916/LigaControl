@@ -342,8 +342,15 @@ a { color: inherit; text-decoration: none; } button { font: inherit; }
 .results-phase-tabs { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; }
 #knockout-editor [hidden] { display: none !important; }
 #knockout-register-results { margin-top: 18px; }
-.result-knockout-decision { grid-column: 2 / 5; grid-row: 2; text-align: center; color: #d62828; font-size: .85rem; line-height: 1.2; white-space: nowrap; }
-[data-theme="dark"] .result-knockout-decision { color: #ff8989; }
+.result-knockout-decision { grid-column: 2 / 5; grid-row: 2; display: grid; justify-items: center; gap: .3rem; text-align: center; font-size: .82rem; line-height: 1.3; color: var(--color-text); }
+.penalty-result-badge { display: inline-flex; align-items: center; gap: .5rem; padding: .25rem .65rem; background: var(--color-primary-light); color: var(--color-primary); border: 1px solid var(--color-border); border-radius: 20px; white-space: nowrap; }
+.penalty-result-badge > span { font-size: .7rem; font-weight: 600; }
+.penalty-result-badge > b { font-size: .9rem; font-variant-numeric: tabular-nums; }
+.result-knockout-decision > small { font-size: .7rem; color: var(--color-muted); }
+.result-knockout-decision > small strong { color: var(--color-text); }
+.result-match-card:has(.result-knockout-decision) { row-gap: .35rem; }
+.result-match-card:has(.result-knockout-decision) .result-schedule { grid-row: 2; grid-column: 1; align-self: end; }
+@media (max-width: 760px) { .result-match-card:has(.result-knockout-decision) .result-schedule { grid-row: 3; grid-column: 1 / -1; } }
 .report-match-decision { grid-column: 3 / 6; display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem .8rem; padding: .4rem .7rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-primary-light); color: var(--color-primary); font-size: .8rem; }
 @media print { .report-match-decision { color: #12376b; background: #edf4ff; break-inside: avoid; } }
 .knockout-result-tabs button { display: inline-flex; gap: .6rem; align-items: center; padding: .65rem .85rem; border: 1px solid var(--color-border); border-radius: 10px; color: var(--color-text); background: var(--color-background); font-weight: 800; cursor: pointer; }

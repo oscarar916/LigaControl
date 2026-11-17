@@ -25,7 +25,8 @@ test('penalty score is rendered in the actual result card below the main score',
   ctx.renderResultNavigation();ctx.renderMatches();
   const html=field('#result-match-list').innerHTML;
   assert.match(html,/class="result-knockout-decision"/);
-  assert.match(html,/\(1 - 2\)/);
+  assert.match(html,/1 – 2/);
+  assert.match(html,/penalty-result-badge/);
   assert.match(html,/Clasificó KO B/);
 });
 test('confirmed knockout matches are initialized once when the tab is opened',async()=>{

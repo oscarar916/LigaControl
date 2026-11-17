@@ -123,7 +123,7 @@ function knockoutDecisionLabel(match) {
   const notes = tied ? String(match.knockoutTieNotes || '').trim() : '';
   if (!tied) return '';
   const penalties = /penal[^\d]*(\d+)\s*[–—−-]\s*(\d+)/i.exec(notes);
-  return penalties ? `<span class="result-knockout-decision" aria-label="Penales: ${penalties[1]} a ${penalties[2]}. Clasificó ${esc(teamName(match.winnerId))}" title="Penales · Clasificó ${esc(teamName(match.winnerId))}">(${penalties[1]} - ${penalties[2]})</span>` : '';
+  return penalties ? `<span class="result-knockout-decision" aria-label="Penales: ${penalties[1]} a ${penalties[2]}. Clasificó ${esc(teamName(match.winnerId))}"><span class="penalty-result-badge"><span>Penales</span><b>${penalties[1]} – ${penalties[2]}</b></span><small>Clasificó <strong>${esc(teamName(match.winnerId))}</strong></small></span>` : '';
 }
 function renderMatches() {
   const round = Number(roundSelect.value);
