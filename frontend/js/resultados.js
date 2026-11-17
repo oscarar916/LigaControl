@@ -117,6 +117,12 @@ function duplicatePlayerMessage(player, requestedTeamId) {
   return `Este DNI ya esta registrado en el equipo ${registeredTeamName}.`;
 }
 
+function knockoutDecisionLabel(match) {
+  if (match.phase !== 'KNOCKOUT' || !match.winnerId || match.homeScore === '' || match.awayScore === '') return '';
+  const tied = Number(match.homeScore) === Number(match.awayScore);
+  const notes = tied ? String(match.knockoutTieNotes || '').trim() : '';
+  return `<span class="result-knockout-decision">${notes ? `<span>${esc(notes)}</span>` : ''}<strong>Clasificó: ${esc(teamName(match.winnerId))}${tied && /penal/i.test(notes) ? ' · Por penales' : ''}</strong></span>`;
+}
 function renderMatches() {
   const round = Number(roundSelect.value);
   const items = phaseMatches().filter(match => match.round === round).sort((a, b) => a.order - b.order);
