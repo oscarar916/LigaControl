@@ -14,7 +14,9 @@ const quickPlayerForm = document.querySelector('#quick-player-form');
 let teams = [], matches = [], players = [], events = [], minutes = [], sanctions = [], payments = [], currentDiscipline = null, activeMatch, lineupDraft = { home: [], away: [] };
 let currentRoundNumber = 0;
 let knockoutPlan = null;
-let preferKnockoutRound = new URLSearchParams(location.search).get('phase') === 'knockout';
+let activeResultsView = new URLSearchParams(location.search).get('phase') === 'knockout' ? 'knockout' : 'matches';
+let backendActasSupported = false, syncingKnockout = false;
+const selectedPhaseRounds = { matches:'', knockout:'' };
 let requestedMatchOpened = false;
 const isGroupMatch = (match) => !match.phase || match.phase === 'GROUP';
 const roundName = (round) => matches.find((m)=>m.round===Number(round))?.roundLabel || `Fecha ${round}`;
@@ -22,7 +24,7 @@ const loadedMinuteMatchIds = new Set();
 document.querySelector('#sync-knockout-actas').addEventListener('click',async(event)=>{
   const button=event.currentTarget; button.disabled=true;
   const hint=document.querySelector('#knockout-acta-hint'); hint.textContent='Preparando partidos y actas de eliminatorias…';
-  try { await apiPost('/api/knockouts',{championshipId,disciplineId,action:'syncMatches'});preferKnockoutRound=true;await load(); }
+  try { await apiPost('/api/knockouts',{championshipId,disciplineId,action:'syncMatches'});activeResultsView='knockout';await load(); }
   catch(error){hint.textContent=error.message;button.disabled=false;}
 });
 
@@ -30,6 +32,32 @@ const esc = value => String(value ?? '').replace(/[&<>'"]/g, character => ({ '&'
 const teamName = id => teams.find(team => team.id === id)?.name || 'Equipo';
 const normalizeDni = value => String(value || '').replace(/\D/g, '');
 const isVolley = () => /v[oó]ley|volley/i.test(currentDiscipline?.name || '');
+const phaseMatches = () => matches.filter((m)=>activeResultsView === 'knockout' ? m.phase==='KNOCKOUT' : isGroupMatch(m));
+function renderResultNavigation(preferredRound) {
+  const knockout=activeResultsView==='knockout',showMatches=knockout||activeResultsView==='matches';
+  document.querySelectorAll('[data-results-view]').forEach((button)=>{const active=button.dataset.resultsView===activeResultsView;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
+  document.querySelector('#matches-view').hidden=!showMatches;
+  document.querySelector('#standings-view').hidden=activeResultsView!=='standings';
+  document.querySelector('#sanctions-view').hidden=activeResultsView!=='sanctions';
+  document.querySelector('#knockout-acta-entry').hidden=!knockout;
+  document.querySelector('#matches-panel-title').textContent=knockout?'Resultados de eliminatorias':'Marcadores por fecha';
+  document.querySelector('#matches-panel-description').textContent=knockout?'Abre el acta para registrar jugadores, goles y tarjetas. Cierra la ronda para habilitar la siguiente.':'Guarda cada acta y cierra la fecha cuando todos los resultados estén completos.';
+  document.querySelector('#round-selection-label').textContent=knockout?'Ronda':'Fecha';
+  document.querySelector('#go-current-round').textContent=knockout?'Ir a ronda actual':'Ir a fecha actual';
+  const items=phaseMatches(),rounds=[...new Set(items.map((m)=>m.round))].sort((a,b)=>a-b);
+  roundSelect.innerHTML=rounds.map((round)=>`<option value="${round}">${esc(roundName(round))}</option>`).join('');
+  currentRoundNumber=calendarRound();
+  const preferred=preferredRound||selectedPhaseRounds[knockout?'knockout':'matches'];
+  roundSelect.value=rounds.some((r)=>String(r)===String(preferred))?String(preferred):String(currentRoundNumber||rounds[0]||'');
+  updateCurrentRoundHint();
+}
+async function ensureKnockoutMatches() {
+  if(activeResultsView!=='knockout'||!backendActasSupported||knockoutPlan?.status!=='CONFIRMED'||matches.some((m)=>m.phase==='KNOCKOUT')||syncingKnockout) return;
+  syncingKnockout=true;const hint=document.querySelector('#knockout-acta-hint');hint.textContent='Preparando los partidos de eliminatorias…';
+  try {await apiPost('/api/knockouts',{championshipId,disciplineId,action:'syncMatches'});await load();}
+  catch(error){hint.textContent=`No se pudieron preparar los partidos: ${error.message}`;matchList.innerHTML='<div class="empty-state"><strong>Los partidos todavía no están habilitados</strong><p>Revisa el mensaje superior y pulsa «Actualizar partidos» para reintentar.</p></div>';}
+  finally{syncingKnockout=false;}
+}
 const playerRosterLabel = player => {
   const shirtNumber = String(player?.shirtNumber ?? '').trim();
   return shirtNumber ? `${shirtNumber} - ${player.fullName}` : player.fullName;
@@ -38,8 +66,9 @@ const playerRosterLabel = player => {
 function calendarRound() {
   const today = new Date();
   today.setHours(23, 59, 59, 999);
-  const grouped = [...new Set(matches.map(match => Number(match.round)))].map(round => {
-    const roundMatches = matches.filter(match => Number(match.round) === round);
+  const items=phaseMatches();
+  const grouped = [...new Set(items.map(match => Number(match.round)))].map(round => {
+    const roundMatches = items.filter(match => Number(match.round) === round);
     const dated = roundMatches.map(match => new Date(`${String(match.date || '').slice(0, 10)}T00:00:00`)).filter(date => !Number.isNaN(date.getTime()));
     return { round, date: dated.length ? new Date(Math.min(...dated.map(date => date.getTime()))) : null, open: roundMatches.some(match => !match.roundLocked) };
   });
@@ -90,7 +119,11 @@ function duplicatePlayerMessage(player, requestedTeamId) {
 
 function renderMatches() {
   const round = Number(roundSelect.value);
-  const items = matches.filter(match => match.round === round).sort((a, b) => a.order - b.order);
+  const items = phaseMatches().filter(match => match.round === round).sort((a, b) => a.order - b.order);
+  if(activeResultsView==='knockout'&&!items.length){
+    const text=knockoutPlan?.status==='CONFIRMED'?'Los partidos de eliminatorias se preparan en esta pestaña.':'Primero prepara y confirma las llaves desde Eliminatorias.';
+    matchList.innerHTML=`<div class="empty-state"><strong>Resultados de eliminatorias</strong><p>${text}</p></div>`;updateRoundControls();return;
+  }
   if (isVolley()) {
     matchList.innerHTML = items.length ? items.map(volleyMatchCard).join('') : '<div class="empty-state"><strong>No hay partidos en esta fecha</strong></div>';
     updateRoundControls();
@@ -131,7 +164,7 @@ async function saveVolleyWinner(matchId, winnerId, button) {
 
 function updateRoundControls() {
   const round = Number(roundSelect.value);
-  const roundMatches = matches.filter(match => match.round === round);
+  const roundMatches = phaseMatches().filter(match => match.round === round);
   const locked = roundMatches.length > 0 && roundMatches.every(match => match.roundLocked);
   const button = document.querySelector('#lock-result-round');
   const unlockButton = document.querySelector('#unlock-result-round');
@@ -388,10 +421,10 @@ async function load() {
     const response = await apiGetFresh('/api/results-bootstrap', { championshipId, disciplineId, publicOnly: true });
     const data = response.data || {};
     knockoutPlan = data.knockoutPlan || null;
+    backendActasSupported=Boolean(data.knockoutActasSupported);
     if (!data.knockoutActasSupported) { try { knockoutPlan=(await apiGet('/api/knockouts',{championshipId,disciplineId})).data; } catch(error) { /* Un campeonato sin eliminatorias puede continuar. */ } }
-    document.querySelector('#knockout-acta-entry').hidden = knockoutPlan?.status !== 'CONFIRMED';
-    document.querySelector('#knockout-acta-hint').textContent = data.knockoutActasSupported ? 'Usa el acta habitual para jugadores, goles y tarjetas. Cierra cada ronda para habilitar la siguiente.' : 'Para habilitar las actas de eliminatorias, publica el backend actualizado de Apps Script.';
-    document.querySelector('#sync-knockout-actas').disabled = !data.knockoutActasSupported;
+    document.querySelector('#knockout-acta-hint').textContent = knockoutPlan?.status!=='CONFIRMED' ? 'Confirma primero los cruces en Eliminatorias para preparar los partidos.' : data.knockoutActasSupported ? 'Usa el acta habitual para jugadores, goles y tarjetas. Los partidos se preparan automáticamente al entrar.' : 'Para habilitar las actas de eliminatorias, publica el backend actualizado de Apps Script.';
+    document.querySelector('#sync-knockout-actas').disabled = !data.knockoutActasSupported || knockoutPlan?.status!=='CONFIRMED';
     const championship = (data.championships || []).find(item => item.id === championshipId);
     const discipline = (data.disciplines || []).find(item => item.id === disciplineId);
     currentDiscipline = discipline || null;
@@ -407,16 +440,11 @@ async function load() {
     loadedMinuteMatchIds.clear();
     document.querySelector('#sidebar-championship').textContent = championship?.shortName || championship?.name || 'Campeonato';
     document.querySelector('#results-context').textContent = `${championship?.name || ''} · ${discipline?.name || ''}`;
-    const rounds = [...new Set(matches.map(item => item.round))].sort((a, b) => a - b);
-    roundSelect.innerHTML = rounds.map(round => `<option value="${round}">${esc(roundName(round))}</option>`).join('');
-    currentRoundNumber = calendarRound();
-    if (rounds.some(round => String(round) === selectedRound)) roundSelect.value = selectedRound;
-    else if (currentRoundNumber) roundSelect.value = String(currentRoundNumber);
-    if (preferKnockoutRound) { const next=matches.find((m)=>m.phase==='KNOCKOUT'&&!m.roundLocked)||matches.find((m)=>m.phase==='KNOCKOUT'); if(next){roundSelect.value=String(next.round);preferKnockoutRound=false;} }
-    updateCurrentRoundHint();
+    renderResultNavigation(selectedRound);
     renderMatches(); renderStandings(); renderSanctions();
     const requestedId=new URLSearchParams(location.search).get('matchId'), requested=matches.find((m)=>m.id===requestedId);
-    if(requested&&!requestedMatchOpened&&!isVolley()){requestedMatchOpened=true;roundSelect.value=String(requested.round);renderMatches();await openSheet(requested);}
+    if(requested&&!requestedMatchOpened&&!isVolley()){requestedMatchOpened=true;activeResultsView=requested.phase==='KNOCKOUT'?'knockout':'matches';renderResultNavigation(String(requested.round));renderMatches();await openSheet(requested);}
+    await ensureKnockoutMatches();
   } catch (error) {
     matchList.innerHTML = `<p class="error-message">${esc(error.message)}</p>`;
     document.querySelector('#round-lock-status').textContent = 'No se pudieron cargar los datos.';
@@ -626,7 +654,7 @@ document.querySelector('#walkover-team').addEventListener('change', () => {
   document.querySelector('#walkover-status').textContent = '';
 });
 document.querySelector('#close-match-sheet').addEventListener('click', () => modal.close());
-roundSelect.addEventListener('change', () => { updateCurrentRoundHint(); renderMatches(); });
+roundSelect.addEventListener('change', () => { selectedPhaseRounds[activeResultsView==='knockout'?'knockout':'matches']=roundSelect.value;updateCurrentRoundHint(); renderMatches(); });
 document.querySelector('#go-current-round').addEventListener('click', () => {
   if (!currentRoundNumber) return;
   roundSelect.value = String(currentRoundNumber);
@@ -635,7 +663,7 @@ document.querySelector('#go-current-round').addEventListener('click', () => {
 });
 document.querySelector('#lock-result-round').addEventListener('click', async event => {
   const round = Number(roundSelect.value);
-  const roundMatches = matches.filter(match => match.round === round);
+  const roundMatches = phaseMatches().filter(match => match.round === round);
   if (!roundMatches.length) return;
   if (!confirm(`¿Confirmas el cierre de ${roundName(round)}? Después ya no se podrán editar sus actas ni resultados.`)) return;
   const button = event.currentTarget;
@@ -651,7 +679,7 @@ document.querySelector('#lock-result-round').addEventListener('click', async eve
 });
 document.querySelector('#unlock-result-round').addEventListener('click', async event => {
   const round = Number(roundSelect.value);
-  const roundMatches = matches.filter(match => match.round === round);
+  const roundMatches = phaseMatches().filter(match => match.round === round);
   if (!roundMatches.length) return;
   if (!confirm(`¿Reabrir ${roundName(round)} para corregir el acta? Después de corregir debes volver a cerrar la ronda.`)) return;
   const button = event.currentTarget;
@@ -668,12 +696,12 @@ document.querySelector('#unlock-result-round').addEventListener('click', async e
     button.disabled = false;
   }
 });
-document.querySelectorAll('[data-results-view]').forEach(button => button.addEventListener('click', () => {
-  document.querySelectorAll('[data-results-view]').forEach(item => item.classList.toggle('active', item === button));
-  document.querySelector('#matches-view').hidden = button.dataset.resultsView !== 'matches';
-  document.querySelector('#standings-view').hidden = button.dataset.resultsView !== 'standings';
-  document.querySelector('#sanctions-view').hidden = button.dataset.resultsView !== 'sanctions';
-  renderStandings();
+document.querySelectorAll('[data-results-view]').forEach(button => button.addEventListener('click', async () => {
+  if(activeResultsView==='matches'||activeResultsView==='knockout')selectedPhaseRounds[activeResultsView]=roundSelect.value;
+  activeResultsView=button.dataset.resultsView;
+  renderResultNavigation();renderMatches();renderStandings();
+  const url=new URL(location.href);if(activeResultsView==='knockout')url.searchParams.set('phase','knockout');else url.searchParams.delete('phase');url.searchParams.delete('matchId');history.replaceState({},'',url);
+  await ensureKnockoutMatches();
 }));
 document.querySelector('#reload-results').addEventListener('click', load);
 document.querySelector('#sanctions-body').addEventListener('click', async event => {

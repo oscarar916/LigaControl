@@ -14,8 +14,8 @@ No hay cambios en el esquema de las hojas. Antes de esta actualización, la inte
 ## Uso
 
 1. Confirmar las llaves en Eliminatorias, como hasta ahora.
-2. Entrar en Resultados y pulsar «Habilitar / actualizar partidos».
-3. Elegir la ronda (Cuartos, Semifinales, Final o Tercer puesto) desde Fecha / Ronda.
+2. Entrar en Resultados y abrir la pestaña «Resultados de eliminatorias». Al entrar se habilitan automáticamente los cruces confirmados que aún no tienen partido. «Actualizar partidos» permite reintentar si hay un error.
+3. Elegir la ronda (Cuartos, Semifinales, Final o Tercer puesto). La pestaña «Resultados por fecha» solo muestra los grupos, y cada una conserva su selección de fecha o ronda.
 4. Abrir el acta habitual: alineaciones, goles, tarjetas, nuevos jugadores y observaciones.
 5. Guardar cada partido. Si empata, indicar ganador y definición en el acta; los penales del desempate no cuentan como goles individuales.
 6. Cerrar la ronda para oficializar los resultados y habilitar los cruces siguientes.
